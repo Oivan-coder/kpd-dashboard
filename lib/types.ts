@@ -2,7 +2,10 @@ export type VerificationStatus = "verified" | "review" | "error" | "excluded";
 
 export type Analyzer = {
   id: string;
+  rowNumber: number;
   laboratory: string;
+  organization: string;
+  address: string;
   level: string;
   direction: string;
   manufacturer: string;
@@ -17,8 +20,15 @@ export type Analyzer = {
   capacityUnit: "tests/hour" | "samples/hour" | null;
   includedInKpi: boolean;
   factIncluded: boolean;
+  factInCalculation: number;
+  monthlyCapacity: number;
+  rowKpi: number | null;
   issue?: string;
+  question?: string;
   sourceUrl?: string;
+  response?: string;
+  confirmedBy?: string;
+  confirmedAt?: string;
 };
 
 export type LaboratorySummary = {
