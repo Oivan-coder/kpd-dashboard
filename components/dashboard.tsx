@@ -38,6 +38,33 @@ function labelUnit(item: Analyzer) {
   return item.capacityUnit === "samples/hour" ? "проб/ч" : "тест/ч";
 }
 
+function canonicalLevel(value: string) {
+  const v = value.toLowerCase().replace(/ё/g, "е").trim();
+  if (!v) return "Не указан";
+  if (v.includes("3") || v.includes("цкдл")) return "3 уровень / ЦКДЛ";
+  if (v.includes("2")) return "2 уровень";
+  if (v.includes("1") || v.includes("экспресс") || v.includes("экспрес")) return "1 уровень / экспресс";
+  return "Не указан";
+}
+
+function ownershipGroup(item: Analyzer) {
+  const base = (item.balanceType || "").toLowerCase().replace(/ё/g, "е");
+  const detail = (item.balanceHolderDetails || "").toLowerCase().replace(/ё/g, "е");
+  if (base.includes("собствен") || detail.includes("собствен")) return "Собственность";
+  if (detail.includes("дбп") || detail.includes("безвозмезд")) return "ДБП";
+  if (detail.includes("лизинг")) return "Лизинг";
+  if (base || detail) return "Иное";
+  return "Не указано";
+}
+
+function connectionGroup(item: Analyzer) {
+  const v = (item.bregisConnection || "").toLowerCase().replace(/ё/g, "е").trim();
+  if (!v) return "Нет данных";
+  if (v === "да" || v.includes("подключ") || v.includes("есть")) return "Подключено";
+  if (v === "нет" || v.includes("не подключ")) return "Не подключено";
+  return "Нет данных";
+}
+
 const statusLabels: Record<VerificationStatus | "all", string> = {
   all: "Все статусы",
   verified: "Проверено",
@@ -236,9 +263,37 @@ export function Dashboard({ data }: { data: DashboardData }) {
 
   const levelStructure = useMemo(() => {
     const map = new Map<string, number>();
-    data.analyzers.forEach((x) => map.set(x.level || "Не указан", (map.get(x.level || "Не указан") || 0) + 1));
-    return [...map.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+    data.analyzers.forEach((x) => {
+      const name = canonicalLevel(x.level);
+      map.set(name, (map.get(name) || 0) + 1);
+    });
+    const order = ["1 уровень / экспресс", "2 уровень", "3 уровень / ЦКДЛ", "Не указан"];
+    return order
+      .map((name) => ({ name, count: map.get(name) || 0 }))
+      .filter((x) => x.count > 0);
   }, [data.analyzers]);
+
+  const ownershipByLab = useMemo(() => {
+    const categories = ["Собственность", "ДБП", "Лизинг", "Иное", "Не указано"];
+    return data.laboratories.map((labItem) => {
+      const rows = data.analyzers.filter((x) => x.laboratory === labItem.name);
+      const counts: Record<string, number> = {};
+      categories.forEach((x) => counts[x] = 0);
+      rows.forEach((x) => counts[ownershipGroup(x)] = (counts[ownershipGroup(x)] || 0) + 1);
+      return { name: labItem.name, counts };
+    });
+  }, [data]);
+
+  const connectionByLab = useMemo(() => {
+    const categories = ["Подключено", "Не подключено", "Нет данных"];
+    return data.laboratories.map((labItem) => {
+      const rows = data.analyzers.filter((x) => x.laboratory === labItem.name);
+      const counts: Record<string, number> = {};
+      categories.forEach((x) => counts[x] = 0);
+      rows.forEach((x) => counts[connectionGroup(x)] = (counts[connectionGroup(x)] || 0) + 1);
+      return { name: labItem.name, counts };
+    });
+  }, [data]);
 
   const issuesByLab = useMemo(() => data.laboratories.map((x) => ({
     name: x.name,
@@ -548,6 +603,25 @@ export function Dashboard({ data }: { data: DashboardData }) {
               <section className="panel chartPanel">
                 <div className="panelHead"><div><h2>Карта уточнений</h2><p>Показывает, в каких ЦКДЛ остаются вопросы по модели, конфигурации, мощности или статусу оборудования</p></div></div>
                 <IssueMap items={issuesByLab} />
+              </section>
+            </div>
+
+            <div className="analyticsGrid two">
+              <section className="panel chartPanel">
+                <div className="panelHead"><div><h2>Форма владения оборудованием</h2><p>По каждой ЦКДЛ: собственность, ДБП, лизинг и другие варианты. ДБП определяется в том числе по тексту условий владения.</p></div></div>
+                <StackedBreakdown
+                  items={ownershipByLab}
+                  categories={["Собственность", "ДБП", "Лизинг", "Иное", "Не указано"]}
+                />
+              </section>
+
+              <section className="panel chartPanel">
+                <div className="panelHead"><div><h2>Подключение анализаторов к БРЕГИС</h2><p>Доля подключённого оборудования по каждому кусту. Используется поле «Подключение к БРЕГИС» из исходного реестра.</p></div></div>
+                <StackedBreakdown
+                  items={connectionByLab}
+                  categories={["Подключено", "Не подключено", "Нет данных"]}
+                  percent
+                />
               </section>
             </div>
 
@@ -926,6 +1000,40 @@ function IssueMap({ items }: { items: { name: string; open: number; answered: nu
         <div key={x.name}><strong>{x.name}</strong><div className="issueTrack"><i className="answeredIssues" style={{ width: `${x.answered / max * 100}%` }} /><i className="openIssues" style={{ width: `${x.open / max * 100}%` }} /></div><span>{x.open + x.answered}</span></div>
       ))}
       <div className="chartLegendInline"><span><i className="answeredKey" />Ответ получен</span><span><i className="openKey" />Открыто</span></div>
+    </div>
+  );
+}
+
+function StackedBreakdown({
+  items,
+  categories,
+  percent = false,
+}: {
+  items: { name: string; counts: Record<string, number> }[];
+  categories: string[];
+  percent?: boolean;
+}) {
+  return (
+    <div className="stackedBreakdown">
+      {items.map((item) => {
+        const total = categories.reduce((s, x) => s + (item.counts[x] || 0), 0);
+        return (
+          <div className="stackedRow" key={item.name}>
+            <strong>{item.name}</strong>
+            <div className="stackedTrack">
+              {categories.map((category, index) => {
+                const count = item.counts[category] || 0;
+                const width = total ? count / total * 100 : 0;
+                return <i key={category} className={`stackSegment stack-${index}`} style={{ width: `${width}%` }} title={`${category}: ${count}`} />;
+              })}
+            </div>
+            <span>{percent ? "100%" : total}</span>
+          </div>
+        );
+      })}
+      <div className="stackedLegend">
+        {categories.map((category, index) => <span key={category}><i className={`stack-${index}`} />{category}</span>)}
+      </div>
     </div>
   );
 }
