@@ -278,3 +278,19 @@ footer{display:flex;justify-content:space-between;gap:12px;color:#8a96a4;font-si
 .breadcrumbs button:hover{text-decoration:underline}
 .breadcrumbs span{color:#aab4bf}
 .breadcrumbs strong{font-weight:700;color:#2c3e52;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.registryHead{align-items:flex-start}
+.registryHeadRight{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.registrySwitch{display:inline-flex;padding:3px;background:#eef2f6;border-radius:10px}
+.registrySwitch button{border:0;background:transparent;padding:7px 10px;border-radius:8px;font-size:9px;color:#6d7a89;cursor:pointer}
+.registrySwitch button.active{background:#fff;color:#17304e;font-weight:800;box-shadow:0 1px 4px rgba(24,52,84,.08)}
+.technicalTableWrap{max-height:68vh}
+.technicalTable{min-width:3000px}
+.technicalTable th{top:0;z-index:2;white-space:nowrap}
+.technicalTable td{max-width:240px}
+.technicalLong{max-width:220px;white-space:normal;line-height:1.35}
+.inlineSource{margin-top:0;font-size:9px}
+@media(max-width:800px){
+  .registryHead{display:block}
+  .registryHeadRight{justify-content:flex-start;margin-top:10px}
+}
