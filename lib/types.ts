@@ -44,6 +44,10 @@ export type Analyzer = {
   response?: string;
   confirmedBy?: string;
   confirmedAt?: string;
+  responseStatus?: string;
+  labComment?: string;
+  labCommentAuthor?: string;
+  labCommentAt?: string;
 };
 
 export type LaboratorySummary = {
