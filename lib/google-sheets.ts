@@ -2,7 +2,7 @@ import "server-only";
 import { google } from "googleapis";
 import type { Analyzer, DashboardData, LaboratorySummary, VerificationStatus } from "./types";
 
-const LABS = ["Истра", "Лобня", "Одинцово", "Балашиха", "Королёв", "Коломна", "Домодедово", "Подольск"];
+export const LABS = ["Истра", "Лобня", "Одинцово", "Балашиха", "Королёв", "Коломна", "Домодедово", "Подольск"];
 
 const FALLBACK_SUMMARY = [
   ["Истра", 348993, 8934, 1876140, 18.6, 12, "Расчет завершен"],
@@ -49,9 +49,62 @@ function statusFromRow(
 ): VerificationStatus {
   if (!includedInKpi) return "excluded";
   const v = verification.toLowerCase();
-  if (!model || model === "#N/A" || manufacturer === "#N/A") return "error";
-  if (v.includes("треб") || v.includes("сохранено") || v.includes("не проверено")) return "review";
+  if (!model || model === "#N/A" || manufacturer === "#N/A" || manufacturer === "Unknown") return "error";
+  if (
+    v.includes("треб") ||
+    v.includes("зависит") ||
+    v.includes("ориентир") ||
+    v.includes("сохранено;")
+  ) return "review";
   return "verified";
+}
+
+function questionFor(
+  status: VerificationStatus,
+  verification: string,
+  manufacturer: string,
+  model: string,
+  sourceModel: string,
+  serialList: string[],
+  comment: string
+): string | undefined {
+  if (status !== "review" && status !== "error") return undefined;
+
+  const joined = `${manufacturer} ${model} ${sourceModel} ${verification} ${comment}`.toLowerCase();
+
+  if (joined.includes("xn-9000") || joined.includes("xn 9000")) {
+    return "Укажите фактическую конфигурацию комплекса: количество аналитических модулей XN-10/XN-20 и наличие SP-10. Для каждого серийного номера укажите, к какому модулю он относится.";
+  }
+  if (joined.includes("acl top") && joined.includes("model not specified")) {
+    return "Укажите точную модель коагулометра ACL TOP (например 350/550/700/750) и подтвердите серийный номер.";
+  }
+  if (joined.includes("oc-sensor")) {
+    return "Укажите точную модификацию OC-SENSOR. У разных моделей семейства различается паспортная производительность.";
+  }
+  if (joined.includes("ku-2800") || manufacturer.toLowerCase() === "unknown") {
+    return "Уточните производителя и точное наименование модели. Если это линия из нескольких модулей — перечислите состав и серийные номера.";
+  }
+  if (verification.toLowerCase().includes("режим")) {
+    return "Уточните фактический режим работы прибора и используемую конфигурацию, от которой зависит производительность.";
+  }
+  if (verification.toLowerCase().includes("конфигурац")) {
+    return "Укажите фактическую конфигурацию прибора/линии: количество аналитических модулей, их модели и серийные номера.";
+  }
+  if (verification.toLowerCase().includes("точной модели") || verification.toLowerCase().includes("модели")) {
+    return "Укажите точного производителя и модель оборудования по шильдику/паспорту.";
+  }
+  if (verification.toLowerCase().includes("зависит от теста")) {
+    return "Укажите основной профиль выполняемых тестов и режим работы, чтобы определить корректную производительность для расчёта КПД.";
+  }
+  if (verification.toLowerCase().includes("ориентир")) {
+    return "Подтвердите модель, конфигурацию и фактическую паспортную производительность по паспорту или инструкции на установленный прибор.";
+  }
+  if (verification.toLowerCase().includes("провер")) {
+    return "Подтвердите точную модель и паспортную производительность установленного прибора.";
+  }
+
+  const serialHint = serialList.length ? ` Серийный номер: ${serialList.join(", ")}.` : "";
+  return `Подтвердите точную модель, конфигурацию и паспортную производительность оборудования.${serialHint}`;
 }
 
 function unitFor(direction: string): "tests/hour" | "samples/hour" | null {
@@ -97,7 +150,7 @@ function fallback(): DashboardData {
   };
 }
 
-async function sheetsClient() {
+export async function sheetsClient(readonly = true) {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
   if (!email || !privateKey) return null;
@@ -105,7 +158,7 @@ async function sheetsClient() {
   const auth = new google.auth.JWT({
     email,
     key: privateKey,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    scopes: [readonly ? "https://www.googleapis.com/auth/spreadsheets.readonly" : "https://www.googleapis.com/auth/spreadsheets"],
   });
 
   return google.sheets({ version: "v4", auth });
@@ -116,13 +169,13 @@ export async function getDashboardData(): Promise<DashboardData> {
     process.env.GOOGLE_SHEETS_SPREADSHEET_ID ||
     "1NzTRhs4UKyzW_fBBE_THU_ULNSKPZkGnkPrPou2WqNU";
 
-  const sheets = await sheetsClient();
+  const sheets = await sheetsClient(true);
   if (!sheets) return fallback();
 
   try {
     const ranges = [
       "'Расчет КПД'!A1:G20",
-      ...LABS.map((lab) => `'${lab}'!A1:AI300`),
+      ...LABS.map((lab) => `'${lab}'!A1:AM300`),
     ];
 
     const response = await sheets.spreadsheets.values.batchGet({
@@ -161,6 +214,8 @@ export async function getDashboardData(): Promise<DashboardData> {
       const ix = indexMap(headers);
 
       const c = {
+        organization: ix("Медицинская организация"),
+        address: ix("Адрес подразделения"),
         level: ix("Тип лаборатории"),
         direction: ix("Вид оборудования"),
         manufacturer: ix("Производитель (пример: Sysmex, Roche, Snibe, Ortho и другие)"),
@@ -168,7 +223,9 @@ export async function getDashboardData(): Promise<DashboardData> {
         serial: ix("Серийный номер"),
         tech: ix("Статус технического состояния (В работе, законсервирован, сломан, списан и другие)"),
         factUse: ix("Учитывать факт"),
+        factCalc: ix("Факт в расчете"),
         powerUse: ix("Учитывать мощность"),
+        monthlyPower: ix("Мощность за 210 часов"),
         reason: ix("Причина / комментарий"),
         sourceManufacturer: ix("Исходный производитель"),
         sourceModel: ix("Исходная модель"),
@@ -176,6 +233,9 @@ export async function getDashboardData(): Promise<DashboardData> {
         verification: ix("Статус верификации"),
         source: ix("Источник мощности"),
         powerComment: ix("Комментарий к мощности"),
+        response: ix("Ответ ЦКДЛ"),
+        confirmedBy: ix("Подтвердил ЦКДЛ"),
+        confirmedAt: ix("Дата подтверждения"),
       };
 
       rows.slice(1).forEach((row, rowIndex) => {
@@ -184,41 +244,58 @@ export async function getDashboardData(): Promise<DashboardData> {
         if (!model && !manufacturer) return;
 
         const includedInKpi = yes(cell(row, c.powerUse));
+        const factIncluded = yes(cell(row, c.factUse));
         const verification = text(cell(row, c.verification));
         const status = statusFromRow(includedInKpi, verification, model, manufacturer);
+        const serialList = serials(cell(row, c.serial));
+        const accepted = num(cell(row, c.acceptedPower)) || null;
+        const monthlyCapacity = includedInKpi ? (num(cell(row, c.monthlyPower)) || (accepted ? accepted * 210 : 0)) : 0;
+        const factInCalculation = factIncluded ? num(cell(row, c.factCalc)) : 0;
+        const rowKpi = monthlyCapacity > 0 && factInCalculation > 0 ? (factInCalculation / monthlyCapacity) * 100 : null;
+        const powerComment = text(cell(row, c.powerComment));
 
         const issueParts = [
           status === "review" || status === "error" ? verification : "",
-          status === "review" || status === "error" ? text(cell(row, c.powerComment)) : "",
+          status === "review" || status === "error" ? powerComment : "",
           status === "review" || status === "error" ? text(cell(row, c.reason)) : "",
         ].filter(Boolean);
 
         analyzers.push({
           id: `${lab}-${rowIndex + 2}`,
+          rowNumber: rowIndex + 2,
           laboratory: lab,
+          organization: text(cell(row, c.organization)),
+          address: text(cell(row, c.address)),
           level: text(cell(row, c.level)),
           direction: text(cell(row, c.direction)),
           manufacturer,
           model,
           sourceManufacturer: text(cell(row, c.sourceManufacturer)),
           sourceModel: text(cell(row, c.sourceModel)),
-          serials: serials(cell(row, c.serial)),
+          serials: serialList,
           technicalStatus: text(cell(row, c.tech)),
           status,
           verificationText: verification,
-          capacityPerHour: num(cell(row, c.acceptedPower)) || null,
+          capacityPerHour: accepted,
           capacityUnit: unitFor(text(cell(row, c.direction))),
           includedInKpi,
-          factIncluded: yes(cell(row, c.factUse)),
+          factIncluded,
+          factInCalculation,
+          monthlyCapacity,
+          rowKpi,
           issue: issueParts.join(" · ") || undefined,
+          question: questionFor(status, verification, manufacturer, model, text(cell(row, c.sourceModel)), serialList, powerComment),
           sourceUrl: text(cell(row, c.source)) || undefined,
+          response: text(cell(row, c.response)) || undefined,
+          confirmedBy: text(cell(row, c.confirmedBy)) || undefined,
+          confirmedAt: text(cell(row, c.confirmedAt)) || undefined,
         });
       });
     });
 
     for (const lab of laboratories) {
       const rows = analyzers.filter((a) => a.laboratory === lab.name);
-      lab.reviewCount = rows.filter((a) => a.status === "review").length;
+      lab.reviewCount = rows.filter((a) => a.status === "review" || a.status === "error").length;
       lab.errorCount = rows.filter((a) => a.status === "error").length;
     }
 
