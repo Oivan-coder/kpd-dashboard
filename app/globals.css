@@ -269,3 +269,12 @@ footer{display:flex;justify-content:space-between;gap:12px;color:#8a96a4;font-si
   .comparisonRow{grid-template-columns:1fr 1fr 1fr}
   .issuesLoginHero{grid-template-columns:1fr}
 }
+
+.navTrail{display:flex;align-items:center;gap:12px;min-height:34px;margin-bottom:10px}
+.backButton{border:1px solid #d6e0e9;background:#fff;border-radius:9px;padding:7px 11px;font-size:10px;font-weight:750;cursor:pointer}
+.backButton:hover{border-color:#9fb1c3;background:#f8fafc}
+.breadcrumbs{display:flex;align-items:center;gap:7px;min-width:0;color:#8290a0;font-size:10px;overflow:hidden;white-space:nowrap}
+.breadcrumbs button{border:0;background:transparent;padding:0;color:#4f6780;cursor:pointer;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.breadcrumbs button:hover{text-decoration:underline}
+.breadcrumbs span{color:#aab4bf}
+.breadcrumbs strong{font-weight:700;color:#2c3e52;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
