@@ -117,7 +117,13 @@ function unitFor(direction: string): "tests/hour" | "samples/hour" | null {
 function indexMap(headers: unknown[]) {
   const map = new Map<string, number>();
   headers.forEach((h, i) => map.set(text(h), i));
-  return (name: string) => map.get(name) ?? -1;
+  return (...names: string[]) => {
+    for (const name of names) {
+      const idx = map.get(name);
+      if (idx != null) return idx;
+    }
+    return -1;
+  };
 }
 
 function cell(row: unknown[], idx: number): unknown {
@@ -244,25 +250,25 @@ export async function getDashboardData(): Promise<DashboardData> {
 
       const c = {
         organization: ix("Медицинская организация"),
-        balanceType: ix("Балансодержатель (собственность/другое)"),
+        balanceType: ix("Балансодержатель (собственность/другое)", "Балансодержатель"),
         balanceHolderDetails: ix("Укажите, кто является балансодержателем и на каких условиях (лизинг/договор безвозмездного пользования)?"),
         level: ix("Тип лаборатории"),
         floor: ix("Этаж, на котором расположено оборудование"),
         address: ix("Адрес подразделения"),
         direction: ix("Вид оборудования"),
-        manufacturer: ix("Производитель (пример: Sysmex, Roche, Snibe, Ortho и другие)"),
-        model: ix("Модель медицинского инвентаря (AU480, XN-9000 и другие)"),
-        originalCapacity: ix("Пропускная способность тест/час"),
+        manufacturer: ix("Производитель (пример: Sysmex, Roche, Snibe, Ortho и другие)", "Производитель"),
+        model: ix("Модель медицинского инвентаря (AU480, XN-9000 и другие)", "Модель медицинского инвентаря"),
+        originalCapacity: ix("Пропускная способность тест/час", "Пропускная способность проб/час"),
         rawFact: ix("Факт за август (исходное сопоставление)"),
         inventoryNumber: ix("Инвентарный номер"),
         serial: ix("Серийный номер"),
         manufactureYear: ix("Год выпуска"),
-        commissioningDate: ix("Дата ввода в эксплуатацию\\инсталляции"),
+        commissioningDate: ix("Дата ввода в эксплуатацию\\инсталляции", "Дата ввода в эксплуатацию"),
         usefulLife: ix("Срок полезного использования для расчета амортизации"),
         depreciation: ix("Текущий % износа (Амортизация)"),
         bregisConnection: ix("Подключение к БРЕГИС"),
-        tech: ix("Статус технического состояния (В работе, законсервирован, сломан, списан и другие)"),
-        responsiblePerson: ix("ФИО , должность, мобильный телефон ответственного, предоставившего сведения"),
+        tech: ix("Статус технического состояния (В работе, законсервирован, сломан, списан и другие)", "Статус технического состояния"),
+        responsiblePerson: ix("ФИО , должность, мобильный телефон ответственного, предоставившего сведения", "ФИО, должность, мобильный телефон ответственного, предоставившего сведения"),
         note: ix("Примечание"),
         factUse: ix("Учитывать факт"),
         factCalc: ix("Факт в расчете"),
