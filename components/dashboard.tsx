@@ -135,6 +135,61 @@ export function Dashboard({ data }: { data: DashboardData }) {
     setView("laboratories");
   };
 
+  const resetFilters = () => {
+    setAddress("all");
+    setLevel("all");
+    setDirection("all");
+    setManufacturer("all");
+    setStatus("all");
+    setSearch("");
+  };
+
+  const goOverview = () => {
+    setView("overview");
+    setLab("all");
+    resetFilters();
+  };
+
+  const goLab = () => {
+    resetFilters();
+    setView("laboratories");
+  };
+
+  const goBack = () => {
+    if (view === "equipment") {
+      if (level !== "all") { setLevel("all"); return; }
+      if (direction !== "all") { setDirection("all"); return; }
+      if (manufacturer !== "all") { setManufacturer("all"); return; }
+      if (status !== "all") { setStatus("all"); return; }
+      if (search) { setSearch(""); return; }
+      if (address !== "all") { setAddress("all"); setView("laboratories"); return; }
+      if (lab !== "all") { setView("laboratories"); return; }
+      setView("overview");
+      return;
+    }
+
+    if (view === "laboratories") {
+      if (lab !== "all") { setLab("all"); return; }
+      setView("overview");
+      return;
+    }
+
+    if (view === "issues") {
+      setView("overview");
+      return;
+    }
+  };
+
+  const showBack =
+    view !== "overview" ||
+    lab !== "all" ||
+    address !== "all" ||
+    level !== "all" ||
+    direction !== "all" ||
+    manufacturer !== "all" ||
+    status !== "all" ||
+    Boolean(search);
+
   const reviewTotal = reviewRows.length;
   const verifiedTotal = data.analyzers.filter((x) => x.status === "verified").length;
   const excludedTotal = data.analyzers.filter((x) => x.status === "excluded").length;
@@ -161,6 +216,33 @@ export function Dashboard({ data }: { data: DashboardData }) {
       </aside>
 
       <section className="workspace">
+        <div className="navTrail">
+          {showBack && <button className="backButton" onClick={goBack}>← Назад</button>}
+          <div className="breadcrumbs">
+            <button onClick={goOverview}>Обзор</button>
+
+            {view === "laboratories" && <><span>›</span><strong>ЦКДЛ</strong></>}
+
+            {lab !== "all" && (
+              <>
+                <span>›</span>
+                <button onClick={goLab}>{lab}</button>
+              </>
+            )}
+
+            {address !== "all" && (
+              <>
+                <span>›</span>
+                <button onClick={() => { setView("equipment"); setLevel("all"); setDirection("all"); setManufacturer("all"); setStatus("all"); setSearch(""); }}>
+                  {address}
+                </button>
+              </>
+            )}
+
+            {level !== "all" && <><span>›</span><strong>{level}</strong></>}
+            {direction !== "all" && <><span>›</span><strong>{direction}</strong></>}
+          </div>
+        </div>
         <header className="pageHeader">
           <div>
             <div className="eyebrow">Референс-центр лабораторной службы</div>
