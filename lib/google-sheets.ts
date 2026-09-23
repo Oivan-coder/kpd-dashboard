@@ -164,6 +164,33 @@ export async function sheetsClient(readonly = true) {
   return google.sheets({ version: "v4", auth });
 }
 
+async function getHourParameters() {
+  const sheets = await sheetsClient(true);
+  if (!sheets) return new Map<string, { proposed?: number; reason?: string; status?: string; approved?: number }>();
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId:
+        process.env.GOOGLE_SHEETS_SPREADSHEET_ID ||
+        "1NzTRhs4UKyzW_fBBE_THU_ULNSKPZkGnkPrPou2WqNU",
+      range: "'Параметры КПД'!A2:F1000",
+      valueRenderOption: "FORMATTED_VALUE",
+    });
+    const map = new Map<string, { proposed?: number; reason?: string; status?: string; approved?: number }>();
+    for (const row of response.data.values ?? []) {
+      const itemId = text(row[0]);
+      if (!itemId) continue;
+      const proposed = num(row[2]) || undefined;
+      const reason = text(row[3]) || undefined;
+      const status = text(row[4]) || undefined;
+      const approved = num(row[5]) || undefined;
+      map.set(itemId, { proposed, reason, status, approved });
+    }
+    return map;
+  } catch {
+    return new Map<string, { proposed?: number; reason?: string; status?: string; approved?: number }>();
+  }
+}
+
 export async function getDashboardData(): Promise<DashboardData> {
   const spreadsheetId =
     process.env.GOOGLE_SHEETS_SPREADSHEET_ID ||
@@ -171,6 +198,8 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const sheets = await sheetsClient(true);
   if (!sheets) return fallback();
+
+  const hourParameters = await getHourParameters();
 
   try {
     const ranges = [
@@ -266,7 +295,11 @@ export async function getDashboardData(): Promise<DashboardData> {
         const status = statusFromRow(includedInKpi, verification, model, manufacturer);
         const serialList = serials(cell(row, c.serial));
         const accepted = num(cell(row, c.acceptedPower)) || null;
-        const monthlyCapacity = includedInKpi ? (num(cell(row, c.monthlyPower)) || (accepted ? accepted * 210 : 0)) : 0;
+        const itemId = `${lab}-${rowIndex + 2}`;
+        const hourParam = hourParameters.get(itemId);
+        const defaultHours = 210;
+        const effectiveHours = hourParam?.approved || defaultHours;
+        const monthlyCapacity = includedInKpi && accepted ? accepted * effectiveHours : 0;
         const factInCalculation = factIncluded ? num(cell(row, c.factCalc)) : 0;
         const rowKpi = monthlyCapacity > 0 && factInCalculation > 0 ? (factInCalculation / monthlyCapacity) * 100 : null;
         const powerComment = text(cell(row, c.powerComment));
@@ -278,7 +311,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         ].filter(Boolean);
 
         analyzers.push({
-          id: `${lab}-${rowIndex + 2}`,
+          id: itemId,
           rowNumber: rowIndex + 2,
           laboratory: lab,
           organization: text(cell(row, c.organization)),
@@ -313,6 +346,12 @@ export async function getDashboardData(): Promise<DashboardData> {
           factInCalculation,
           monthlyCapacity,
           rowKpi,
+          defaultHours,
+          proposedHours: hourParam?.proposed,
+          approvedHours: hourParam?.approved,
+          effectiveHours,
+          hoursReason: hourParam?.reason,
+          hoursStatus: hourParam?.status,
           issue: issueParts.join(" · ") || undefined,
           question: questionFor(status, verification, manufacturer, model, text(cell(row, c.sourceModel)), serialList, powerComment),
           sourceUrl: text(cell(row, c.source)) || undefined,
@@ -331,20 +370,28 @@ export async function getDashboardData(): Promise<DashboardData> {
 
     for (const lab of laboratories) {
       const rows = analyzers.filter((a) => a.laboratory === lab.name);
+      const capacityRows = rows.filter((a) => a.includedInKpi && a.capacityPerHour);
       lab.reviewCount = rows.filter((a) => a.status === "review" || a.status === "error").length;
       lab.errorCount = rows.filter((a) => a.status === "error").length;
+      lab.capacityPerHour = capacityRows.reduce((s, a) => s + (a.capacityPerHour || 0), 0);
+      lab.monthlyCapacity = capacityRows.reduce((s, a) => s + a.monthlyCapacity, 0);
+      lab.analyzers = capacityRows.length;
+      lab.kpi = lab.monthlyCapacity > 0 ? lab.fact / lab.monthlyCapacity * 100 : 0;
     }
 
-    const totalRow = summaryValues.find((r) => text(r[0]) === "ИТОГО");
+    const totalFact = laboratories.reduce((s, x) => s + x.fact, 0);
+    const totalCapacityPerHour = laboratories.reduce((s, x) => s + x.capacityPerHour, 0);
+    const totalMonthlyCapacity = laboratories.reduce((s, x) => s + x.monthlyCapacity, 0);
+    const totalAnalyzersInCapacity = laboratories.reduce((s, x) => s + x.analyzers, 0);
 
     return {
       source: "google-sheets",
       updatedAt: new Date().toISOString(),
-      totalKpi: num(totalRow?.[4]) || 31.6,
-      totalFact: num(totalRow?.[1]) || 4199091,
-      totalCapacityPerHour: num(totalRow?.[2]) || 63230,
-      totalMonthlyCapacity: num(totalRow?.[3]) || 13278300,
-      totalAnalyzersInCapacity: num(totalRow?.[5]) || 122,
+      totalKpi: totalMonthlyCapacity > 0 ? totalFact / totalMonthlyCapacity * 100 : 0,
+      totalFact,
+      totalCapacityPerHour,
+      totalMonthlyCapacity,
+      totalAnalyzersInCapacity,
       laboratories,
       analyzers,
     };
