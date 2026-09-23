@@ -253,6 +253,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         manufacturer: ix("Производитель (пример: Sysmex, Roche, Snibe, Ortho и другие)"),
         model: ix("Модель медицинского инвентаря (AU480, XN-9000 и другие)"),
         originalCapacity: ix("Пропускная способность тест/час"),
+        rawFact: ix("Факт за август (исходное сопоставление)"),
         inventoryNumber: ix("Инвентарный номер"),
         serial: ix("Серийный номер"),
         manufactureYear: ix("Год выпуска"),
@@ -300,6 +301,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         const defaultHours = 210;
         const effectiveHours = hourParam?.approved || defaultHours;
         const monthlyCapacity = includedInKpi && accepted ? accepted * effectiveHours : 0;
+        const rawFact = num(cell(row, c.rawFact));
         const factInCalculation = factIncluded ? num(cell(row, c.factCalc)) : 0;
         const rowKpi = monthlyCapacity > 0 && factInCalculation > 0 ? (factInCalculation / monthlyCapacity) * 100 : null;
         const powerComment = text(cell(row, c.powerComment));
@@ -342,6 +344,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           capacityPerHour: accepted,
           capacityUnit: unitFor(text(cell(row, c.direction))),
           includedInKpi,
+          rawFact,
           factIncluded,
           factInCalculation,
           monthlyCapacity,
