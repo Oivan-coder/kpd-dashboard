@@ -5,7 +5,9 @@ import { COOKIE_NAME, saveClarification, verifySessionToken } from "@/lib/access
 
 export async function POST(request: Request) {
   const session = verifySessionToken(cookies().get(COOKIE_NAME)?.value);
-  if (!session) return NextResponse.json({ error: "Требуется вход по коду ЦКДЛ" }, { status: 401 });
+  if (!session || session.role !== "lab" || !session.laboratory) {
+    return NextResponse.json({ error: "Требуется вход под кодом ЦКДЛ" }, { status: 401 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const itemId = String(body.itemId ?? "");
