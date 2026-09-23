@@ -152,3 +152,27 @@ footer{display:flex;justify-content:space-between;gap:12px;color:#8a96a4;font-si
   .addressRow{grid-template-columns:1fr 1fr}
   h1{font-size:25px}
 }
+
+.accessPanel{border-top:1px solid #29405f;padding-top:16px;display:flex;flex-direction:column;gap:8px}
+.accessLabel{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#8194aa;font-weight:800}
+.accessPanel strong{font-size:13px;color:#fff}
+.accessPanel input{width:100%;border:1px solid #3b5473;background:#0f1e33;color:#fff;border-radius:8px;padding:9px 10px;font-size:11px;outline:none;text-transform:uppercase}
+.accessPanel input::placeholder{color:#6f8197}
+.accessPanel button{border:0;border-radius:8px;background:#e9f0f7;color:#17304e;padding:9px 10px;font-size:10px;font-weight:750;cursor:pointer}
+.accessPanel button:disabled{opacity:.55;cursor:not-allowed}
+.accessPanel .ghostAccess{background:transparent;color:#9aabbd;border:1px solid #3b526f}
+.accessError{font-size:9px;line-height:1.35;color:#ffb7ae}
+.issuesNotice{margin-bottom:12px;padding:10px 12px;border-radius:10px;background:#f5f7fa;border:1px solid #dfe6ed;color:#5d6a79;font-size:10px}
+.issuesNotice.accessGranted{background:#eef8f2;border-color:#cde7d6;color:#2a5d3e}
+.answerForm{margin-top:10px;border:1px solid #d9e5df;background:#f7fbf8;border-radius:10px;padding:11px;display:flex;flex-direction:column;gap:9px}
+.answerForm label span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#61756a;font-weight:800;margin-bottom:5px}
+.answerForm textarea,.answerForm input{width:100%;border:1px solid #ccd9d1;background:white;border-radius:8px;padding:9px 10px;font-size:10px;color:#24332a;outline:none;resize:vertical}
+.answerForm textarea:focus,.answerForm input:focus{border-color:#6e9a7c;box-shadow:0 0 0 3px rgba(74,130,91,.08)}
+.submitAnswer{align-self:flex-start;border:0;border-radius:8px;background:#285f3e;color:#fff;padding:9px 12px;font-size:10px;font-weight:750;cursor:pointer}
+.submitAnswer:disabled{opacity:.45;cursor:not-allowed}
+.formError{font-size:9px;color:#9a342c}
+.formSuccess{font-size:9px;color:#27623f}
+.submittedAnswer{margin-top:10px;border:1px solid #cfe4d6;background:#f0f8f3;border-radius:10px;padding:11px}
+.submittedAnswer>span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#39704e;font-weight:800}
+.submittedAnswer p{font-size:10px;color:#34483a;line-height:1.45;margin-top:6px}
+.submittedAnswer small{display:block;font-size:8px;color:#708177;margin-top:7px}
