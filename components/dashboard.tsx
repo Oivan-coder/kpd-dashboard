@@ -472,7 +472,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
               {reviewRows
                 .filter((x) => !accessLab || x.laboratory === accessLab || lab === "all")
                 .map((x) => {
-                  const form = answers[x.id] ?? { response: "", confirmedBy: "" };
+                  const form = answers[x.id] ?? { response: "", confirmedBy: "", busy: false, error: "", saved: false };
                   const editable = accessLab === x.laboratory;
                   return (
                     <article className="issueDetailCard" key={x.id}>
