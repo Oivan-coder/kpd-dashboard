@@ -32,6 +32,7 @@ export type Analyzer = {
   capacityPerHour: number | null;
   capacityUnit: "tests/hour" | "samples/hour" | null;
   includedInKpi: boolean;
+  rawFact: number;
   factIncluded: boolean;
   factInCalculation: number;
   monthlyCapacity: number;
