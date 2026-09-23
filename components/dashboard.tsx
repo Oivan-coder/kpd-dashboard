@@ -612,6 +612,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
                 <StackedBreakdown
                   items={ownershipByLab}
                   categories={["Собственность", "ДБП", "Лизинг", "Иное", "Не указано"]}
+                  palette="ownership"
                 />
               </section>
 
@@ -621,6 +622,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
                   items={connectionByLab}
                   categories={["Подключено", "Не подключено", "Нет данных"]}
                   percent
+                  palette="connection"
                 />
               </section>
             </div>
@@ -1008,10 +1010,12 @@ function StackedBreakdown({
   items,
   categories,
   percent = false,
+  palette = "default",
 }: {
   items: { name: string; counts: Record<string, number> }[];
   categories: string[];
   percent?: boolean;
+  palette?: "default" | "ownership" | "connection";
 }) {
   return (
     <div className="stackedBreakdown">
@@ -1024,7 +1028,7 @@ function StackedBreakdown({
               {categories.map((category, index) => {
                 const count = item.counts[category] || 0;
                 const width = total ? count / total * 100 : 0;
-                return <i key={category} className={`stackSegment stack-${index}`} style={{ width: `${width}%` }} title={`${category}: ${count}`} />;
+                return <i key={category} className={`stackSegment ${palette}-stack-${index}`} style={{ width: `${width}%` }} title={`${category}: ${count}`} />;
               })}
             </div>
             <span>{percent ? "100%" : total}</span>
@@ -1032,7 +1036,7 @@ function StackedBreakdown({
         );
       })}
       <div className="stackedLegend">
-        {categories.map((category, index) => <span key={category}><i className={`stack-${index}`} />{category}</span>)}
+        {categories.map((category, index) => <span key={category}><i className={`${palette}-stack-${index}`} />{category}</span>)}
       </div>
     </div>
   );
