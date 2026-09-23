@@ -247,47 +247,87 @@ export function Dashboard({ data }: { data: DashboardData }) {
 
         {view === "laboratories" && (
           <>
-            <div className="labSelector">
-              <button className={lab === "all" ? "active" : ""} onClick={() => setLab("all")}>Все ЦКДЛ</button>
-              {data.laboratories.map((x) => <button key={x.name} className={lab === x.name ? "active" : ""} onClick={() => setLab(x.name)}>{x.name}</button>)}
-            </div>
-
-            {(lab === "all" ? labDetails : labDetails.filter((x) => x.name === lab)).map((item) => (
-              <section className="labWorkspace panel" key={item.name}>
-                <div className="labWorkspaceHead">
+            {lab === "all" ? (
+              <section className="panel">
+                <div className="panelHead">
                   <div>
-                    <h2>{item.name}</h2>
-                    <p>{item.addresses.length} адресов · {item.rows.length} единиц оборудования · {item.analyzers} приборов в расчёте мощности</p>
+                    <h2>Свод по 8 ЦКДЛ</h2>
+                    <p>Выберите ЦКДЛ для детализации по адресам и уровням</p>
                   </div>
-                  <div className="bigKpi"><span>КПД</span><strong>{pct(item.kpi)}</strong></div>
                 </div>
 
-                <div className="levelBreakdown">
-                  {item.levelBreakdown.map((g) => (
-                    <article key={g.name}>
-                      <span>{g.name}</span>
-                      <strong>{pct(g.kpi)}</strong>
-                      <small>{g.count} позиций · {g.included} в расчёте · {g.issues} вопросов</small>
-                    </article>
-                  ))}
-                </div>
-
-                <div className="addressList">
-                  {item.addresses.map((addr) => {
-                    const rows = item.rows.filter((x) => x.address === addr);
-                    const g = groupKpi(rows);
+                <div className="labGrid">
+                  {labDetails.map((item) => {
+                    const included = item.rows.filter((x) => x.includedInKpi).length;
                     return (
-                      <button key={addr} className="addressRow" onClick={() => {setAddress(addr);setLab(item.name);setView("equipment");}}>
-                        <div><strong>{addr}</strong><span>{rows.length} единиц оборудования</span></div>
-                        <div><span>КПД адреса</span><strong>{pct(g.kpi)}</strong></div>
-                        <div><span>В расчёте</span><strong>{g.included}</strong></div>
-                        <div><span>Уточнений</span><strong>{g.issues}</strong></div>
+                      <button className="labCard" key={item.name} onClick={() => openLab(item.name)}>
+                        <div className="labTitle">
+                          <h3>{item.name}</h3>
+                          {item.reviewCount > 0 && <span className="dotWarn" />}
+                        </div>
+                        <div className="kpiValue">{pct(item.kpi)}</div>
+                        <div className="bar"><span style={{ width: `${Math.min(item.kpi, 100)}%` }} /></div>
+                        <div className="cardMeta">
+                          <span>{item.addresses.length} адресов</span>
+                          <span>{item.rows.length} позиций</span>
+                        </div>
+                        <div className="cardMeta">
+                          <span>{included} в расчёте</span>
+                          <span>{item.reviewCount} уточнений</span>
+                        </div>
+                        <div className="dataStatus">Открыть ЦКДЛ →</div>
                       </button>
                     );
                   })}
                 </div>
               </section>
-            ))}
+            ) : (
+              <>
+                <div className="labSelector">
+                  <button onClick={() => setLab("all")}>← Все ЦКДЛ</button>
+                  {data.laboratories.map((x) => (
+                    <button key={x.name} className={lab === x.name ? "active" : ""} onClick={() => setLab(x.name)}>{x.name}</button>
+                  ))}
+                </div>
+
+                {labDetails.filter((x) => x.name === lab).map((item) => (
+                  <section className="labWorkspace panel" key={item.name}>
+                    <div className="labWorkspaceHead">
+                      <div>
+                        <h2>{item.name}</h2>
+                        <p>{item.addresses.length} адресов · {item.rows.length} единиц оборудования · {item.analyzers} приборов в расчёте мощности</p>
+                      </div>
+                      <div className="bigKpi"><span>КПД</span><strong>{pct(item.kpi)}</strong></div>
+                    </div>
+
+                    <div className="levelBreakdown">
+                      {item.levelBreakdown.map((g) => (
+                        <article key={g.name}>
+                          <span>{g.name}</span>
+                          <strong>{pct(g.kpi)}</strong>
+                          <small>{g.count} позиций · {g.included} в расчёте · {g.issues} вопросов</small>
+                        </article>
+                      ))}
+                    </div>
+
+                    <div className="addressList">
+                      {item.addresses.map((addr) => {
+                        const rows = item.rows.filter((x) => x.address === addr);
+                        const g = groupKpi(rows);
+                        return (
+                          <button key={addr} className="addressRow" onClick={() => { setAddress(addr); setLab(item.name); setView("equipment"); }}>
+                            <div><strong>{addr}</strong><span>{rows.length} единиц оборудования</span></div>
+                            <div><span>КПД адреса</span><strong>{pct(g.kpi)}</strong></div>
+                            <div><span>В расчёте</span><strong>{g.included}</strong></div>
+                            <div><span>Уточнений</span><strong>{g.issues}</strong></div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </>
+            )}
           </>
         )}
 
