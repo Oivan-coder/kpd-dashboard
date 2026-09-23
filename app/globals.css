@@ -5,47 +5,98 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: #f5f7fa; }
-.shell { max-width: 1440px; margin: 0 auto; padding: 32px; }
+button, input, select { font: inherit; }
+.shell { max-width: 1500px; margin: 0 auto; padding: 32px; }
 .topbar { display:flex; justify-content:space-between; gap:24px; align-items:flex-start; margin-bottom:28px; }
+.headerRight { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
 .eyebrow { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#6d7786; }
 h1 { margin:6px 0 8px; font-size:32px; letter-spacing:-.03em; }
 h2 { margin:0; font-size:20px; }
 h3 { margin:0; font-size:16px; }
 p { margin:0; color:#697586; }
-.period { background:#fff; border:1px solid #dce2ea; border-radius:10px; padding:10px 14px; font-weight:650; }
+.period, .sourcePill { background:#fff; border:1px solid #dce2ea; border-radius:10px; padding:10px 14px; font-weight:650; font-size:13px; }
+.sourcePill { display:flex; align-items:center; gap:8px; }
+.sourceDot { width:8px; height:8px; border-radius:50%; background:#97a2b0; }
+.source-google-sheets { color:#245f3f; border-color:#cfe6d8; background:#f2fbf6; }
+.source-google-sheets .sourceDot { background:#38a169; }
+.source-fallback { color:#7a5c13; border-color:#eadba4; background:#fffaf0; }
+.source-fallback .sourceDot { background:#d69e2e; }
+
 .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:30px; }
 .metric { background:#fff; border:1px solid #e0e5ec; border-radius:14px; padding:18px; }
 .metric span { display:block; color:#6f7a89; font-size:13px; margin-bottom:8px; }
-.metric strong { font-size:29px; letter-spacing:-.03em; }
+.metric strong { display:block; font-size:29px; letter-spacing:-.03em; }
+.metric small { display:block; color:#8a94a1; margin-top:6px; }
 .metric.warn { background:#fff9e8; border-color:#efd77f; }
-.sectionHead { display:flex; justify-content:space-between; margin:0 0 14px; }
+.metric.danger { background:#fff3f2; border-color:#efb2ad; }
+
+.sectionHead { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin:0 0 14px; }
 .sectionHead p { margin-top:4px; font-size:13px; }
+.count { color:#677383; font-size:13px; }
+
 .labGrid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:34px; }
-.labCard { background:#fff; border:1px solid #e0e5ec; border-radius:14px; padding:17px; }
+.labCard {
+  appearance:none; text-align:left; color:inherit; width:100%;
+  background:#fff; border:1px solid #e0e5ec; border-radius:14px; padding:17px;
+  cursor:pointer; transition:.15s ease;
+}
+.labCard:hover { transform:translateY(-1px); border-color:#b9c8d8; box-shadow:0 8px 22px rgba(35,52,75,.06); }
+.labCardActive { border-color:#4b6f99; box-shadow:0 0 0 2px rgba(75,111,153,.10); }
 .labTitle { display:flex; align-items:center; gap:8px; justify-content:space-between; }
-.dotWarn { width:10px; height:10px; border-radius:50%; background:#e5ad24; box-shadow:0 0 0 4px #fff5cf; }
+.labSignals { display:flex; gap:6px; align-items:center; }
+.dotWarn, .dotError { width:10px; height:10px; border-radius:50%; }
+.dotWarn { background:#e5ad24; box-shadow:0 0 0 4px #fff5cf; }
+.dotError { background:#d9534f; box-shadow:0 0 0 4px #fdeceb; }
 .kpiValue { margin:18px 0 8px; font-size:32px; font-weight:750; letter-spacing:-.04em; }
 .bar { height:7px; border-radius:999px; background:#edf1f5; overflow:hidden; }
 .bar span { display:block; height:100%; background:#355f93; border-radius:999px; }
 .cardMeta { display:flex; justify-content:space-between; gap:12px; margin-top:10px; color:#788391; font-size:12px; }
+.dataStatus { margin-top:10px; padding-top:10px; border-top:1px solid #eef1f4; color:#7a8491; font-size:11px; }
+
 .registry { margin-top:4px; }
+.filters {
+  display:grid;
+  grid-template-columns:repeat(5,minmax(140px,1fr)) minmax(220px,1.4fr);
+  gap:10px;
+  margin-bottom:12px;
+}
+.filters select, .filters input {
+  width:100%; background:#fff; border:1px solid #dce2ea; border-radius:10px;
+  padding:10px 11px; color:#263447; outline:none;
+}
+.filters select:focus, .filters input:focus { border-color:#6b88a8; box-shadow:0 0 0 3px rgba(74,111,153,.10); }
+
 .tableWrap { overflow:auto; background:#fff; border:1px solid #e0e5ec; border-radius:14px; }
-table { width:100%; border-collapse:collapse; min-width:1100px; }
+table { width:100%; border-collapse:collapse; min-width:1320px; }
 th, td { text-align:left; padding:13px 14px; border-bottom:1px solid #edf0f4; vertical-align:top; font-size:13px; }
-th { background:#fafbfc; color:#667180; font-size:12px; font-weight:700; }
+th { position:sticky; top:0; z-index:1; background:#fafbfc; color:#667180; font-size:12px; font-weight:700; }
 tr:last-child td { border-bottom:0; }
 .rowReview td { background:#fffbee; }
+.rowError td { background:#fff3f2; }
+.original { margin-top:4px; color:#87919d; font-size:11px; }
+.unit { color:#7d8794; }
+.issueCell { min-width:280px; max-width:420px; }
+.issueCell a { display:block; width:max-content; margin-top:6px; color:#315f91; text-decoration:none; font-size:11px; }
+.issueCell a:hover { text-decoration:underline; }
+.empty { text-align:center; padding:34px; color:#7a8491; }
+
 .badge { display:inline-flex; align-items:center; white-space:nowrap; padding:5px 8px; border-radius:999px; font-size:11px; font-weight:700; }
 .badge-verified { background:#e8f6ee; color:#21633d; }
 .badge-review { background:#fff0bd; color:#755700; }
 .badge-error { background:#fde8e7; color:#8b2e2a; }
 .badge-excluded { background:#edf0f4; color:#5e6774; }
-@media (max-width: 1000px) {
+
+footer { display:flex; justify-content:space-between; gap:16px; margin:18px 2px 0; color:#8a94a1; font-size:11px; }
+
+@media (max-width: 1200px) {
   .metrics, .labGrid { grid-template-columns:repeat(2,1fr); }
+  .filters { grid-template-columns:repeat(3,1fr); }
 }
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   .shell { padding:18px; }
   .topbar { flex-direction:column; }
-  .metrics, .labGrid { grid-template-columns:1fr; }
+  .headerRight { justify-content:flex-start; }
+  .metrics, .labGrid, .filters { grid-template-columns:1fr; }
   h1 { font-size:27px; }
+  footer { flex-direction:column; }
 }
