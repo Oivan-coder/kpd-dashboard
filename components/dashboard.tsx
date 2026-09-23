@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Analyzer, DashboardData, VerificationStatus } from "@/lib/types";
 import { StatusBadge } from "./status-badge";
 
@@ -49,66 +49,6 @@ export function Dashboard({ data }: { data: DashboardData }) {
   const [manufacturer, setManufacturer] = useState("all");
   const [status, setStatus] = useState<VerificationStatus | "all">("all");
   const [search, setSearch] = useState("");
-  const [accessLab, setAccessLab] = useState<string | null>(null);
-  const [accessCode, setAccessCode] = useState("");
-  const [accessError, setAccessError] = useState("");
-  const [accessBusy, setAccessBusy] = useState(false);
-  const [answers, setAnswers] = useState<Record<string, { response: string; confirmedBy: string; busy?: boolean; error?: string; saved?: boolean }>>({});
-
-  useEffect(() => {
-    fetch("/api/session")
-      .then((r) => r.json())
-      .then((s) => setAccessLab(s.laboratory ?? null))
-      .catch(() => {});
-  }, []);
-
-  const login = async () => {
-    setAccessBusy(true);
-    setAccessError("");
-    try {
-      const r = await fetch("/api/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: accessCode }),
-      });
-      const body = await r.json();
-      if (!r.ok) throw new Error(body.error || "Не удалось войти");
-      setAccessLab(body.laboratory);
-      setAccessCode("");
-      setView("issues");
-    } catch (e) {
-      setAccessError(e instanceof Error ? e.message : "Ошибка входа");
-    } finally {
-      setAccessBusy(false);
-    }
-  };
-
-  const logout = async () => {
-    await fetch("/api/session", { method: "DELETE" });
-    setAccessLab(null);
-  };
-
-  const updateAnswer = (id: string, patch: Partial<{ response: string; confirmedBy: string; busy: boolean; error: string; saved: boolean }>) => {
-    setAnswers((prev) => ({ ...prev, [id]: { response: "", confirmedBy: "", ...prev[id], ...patch } }));
-  };
-
-  const submitAnswer = async (item: Analyzer) => {
-    const state = answers[item.id] ?? { response: "", confirmedBy: "" };
-    updateAnswer(item.id, { busy: true, error: "", saved: false });
-    try {
-      const r = await fetch("/api/clarifications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId: item.id, response: state.response, confirmedBy: state.confirmedBy }),
-      });
-      const body = await r.json();
-      if (!r.ok) throw new Error(body.error || "Не удалось сохранить");
-      updateAnswer(item.id, { busy: false, saved: true });
-      setTimeout(() => window.location.reload(), 700);
-    } catch (e) {
-      updateAnswer(item.id, { busy: false, error: e instanceof Error ? e.message : "Ошибка сохранения" });
-    }
-  };
 
   const reviewRows = useMemo(
     () => data.analyzers.filter((x) => x.status === "review" || x.status === "error"),
@@ -195,80 +135,9 @@ export function Dashboard({ data }: { data: DashboardData }) {
     setView("laboratories");
   };
 
-  const goBack = () => {
-    if (view === "equipment") {
-      if (level !== "all") { setLevel("all"); return; }
-      if (direction !== "all") { setDirection("all"); return; }
-      if (manufacturer !== "all") { setManufacturer("all"); return; }
-      if (status !== "all") { setStatus("all"); return; }
-      if (search) { setSearch(""); return; }
-      if (address !== "all") {
-        setAddress("all");
-        setView("laboratories");
-        return;
-      }
-      if (lab !== "all") {
-        setView("laboratories");
-        return;
-      }
-      setView("overview");
-      return;
-    }
-
-    if (view === "laboratories") {
-      if (lab !== "all") { setLab("all"); return; }
-      setView("overview");
-      return;
-    }
-
-    if (view === "issues") {
-      if (lab !== "all") { setLab("all"); return; }
-      setView("overview");
-      return;
-    }
-
-    setView("overview");
-  };
-
-  const showBack =
-    view !== "overview" ||
-    lab !== "all" ||
-    address !== "all" ||
-    level !== "all" ||
-    direction !== "all" ||
-    manufacturer !== "all" ||
-    status !== "all" ||
-    Boolean(search);
-
   const reviewTotal = reviewRows.length;
   const verifiedTotal = data.analyzers.filter((x) => x.status === "verified").length;
   const excludedTotal = data.analyzers.filter((x) => x.status === "excluded").length;
-
-  const levelStructure = useMemo(() => {
-    const counts = new Map<string, number>();
-    data.analyzers.forEach((x) => {
-      const key = x.level || "Не указан";
-      counts.set(key, (counts.get(key) || 0) + 1);
-    });
-    return [...counts.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [data.analyzers]);
-
-  const inclusionByLab = useMemo(() => data.laboratories.map((l) => {
-    const rows = data.analyzers.filter((x) => x.laboratory === l.name);
-    const included = rows.filter((x) => x.includedInKpi).length;
-    return { name: l.name, total: rows.length, included, excluded: Math.max(0, rows.length - included) };
-  }), [data]);
-
-  const issuesByLab = useMemo(() => data.laboratories.map((l) => {
-    const rows = reviewRows.filter((x) => x.laboratory === l.name);
-    return {
-      name: l.name,
-      total: rows.length,
-      answered: rows.filter((x) => Boolean(x.response)).length,
-    };
-  }), [data.laboratories, reviewRows]);
 
   return (
     <main className="appShell">
@@ -285,31 +154,6 @@ export function Dashboard({ data }: { data: DashboardData }) {
             Уточнения <span className="navCount">{reviewTotal}</span>
           </button>
         </nav>
-        <div className="accessPanel">
-          {accessLab ? (
-            <>
-              <span className="accessLabel">Редактирование</span>
-              <strong>{accessLab}</strong>
-              <button onClick={() => { setLab(accessLab); setView("issues"); }}>Мои уточнения</button>
-              <button className="ghostAccess" onClick={logout}>Выйти</button>
-            </>
-          ) : (
-            <>
-              <span className="accessLabel">Для заведующего ЦКДЛ</span>
-              <input
-                value={accessCode}
-                onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
-                onKeyDown={(e) => e.key === "Enter" && login()}
-                placeholder="Код доступа"
-                autoComplete="off"
-              />
-              <button onClick={login} disabled={accessBusy || !accessCode.trim()}>
-                {accessBusy ? "Проверяем…" : "Войти для ответа"}
-              </button>
-              {accessError && <span className="accessError">{accessError}</span>}
-            </>
-          )}
-        </div>
         <div className="sideMeta">
           <div className={`sourcePill source-${data.source}`}><span className="sourceDot" />{data.source === "google-sheets" ? "Google Sheets · live" : "Fallback"}</div>
           <span>Август 2026</span>
@@ -317,26 +161,6 @@ export function Dashboard({ data }: { data: DashboardData }) {
       </aside>
 
       <section className="workspace">
-        <div className="navTrail">
-          {showBack && <button className="backButton" onClick={goBack}>← Назад</button>}
-          <div className="breadcrumbs">
-            <button onClick={() => { setView("overview"); setLab("all"); setAddress("all"); setLevel("all"); setDirection("all"); setManufacturer("all"); setStatus("all"); setSearch(""); }}>Обзор</button>
-            {lab !== "all" && (
-              <>
-                <span>›</span>
-                <button onClick={() => { setView("laboratories"); setAddress("all"); setLevel("all"); setDirection("all"); setManufacturer("all"); setStatus("all"); setSearch(""); }}>{lab}</button>
-              </>
-            )}
-            {address !== "all" && (
-              <>
-                <span>›</span>
-                <button onClick={() => { setView("equipment"); setLevel("all"); setDirection("all"); setManufacturer("all"); setStatus("all"); setSearch(""); }}>{address}</button>
-              </>
-            )}
-            {level !== "all" && <><span>›</span><strong>{level}</strong></>}
-            {direction !== "all" && <><span>›</span><strong>{direction}</strong></>}
-          </div>
-        </div>
         <header className="pageHeader">
           <div>
             <div className="eyebrow">Референс-центр лабораторной службы</div>
@@ -374,19 +198,16 @@ export function Dashboard({ data }: { data: DashboardData }) {
               </section>
 
               <section className="panel">
-                <div className="panelHead"><div><h2>Структура парка по уровням</h2><p>Все {fmt(data.analyzers.length)} учётных позиций</p></div></div>
-                <ParkStructureChart items={levelStructure} total={data.analyzers.length} />
-              </section>
-            </div>
-
-            <div className="overviewAnalytics">
-              <section className="panel">
-                <div className="panelHead"><div><h2>Охват парка расчётом КПД</h2><p>Сколько оборудования каждого куста реально входит в знаменатель</p></div></div>
-                <InclusionChart items={inclusionByLab} />
-              </section>
-              <section className="panel">
-                <div className="panelHead"><div><h2>Карта уточнений</h2><p>Где ещё остаются непроверенные исходные данные</p></div></div>
-                <IssuesChart items={issuesByLab} />
+                <div className="panelHead"><div><h2>КПД по уровням</h2><p>Расчёт из строк, где одновременно есть факт и мощность</p></div></div>
+                <div className="levelTiles">
+                  {levelGroups.map((g) => (
+                    <article key={g.name} className="levelTile">
+                      <span>{g.name}</span>
+                      <strong>{pct(g.kpi)}</strong>
+                      <small>{g.included} приборов · {fmt(g.fact)} факт</small>
+                    </article>
+                  ))}
+                </div>
               </section>
             </div>
 
@@ -426,97 +247,47 @@ export function Dashboard({ data }: { data: DashboardData }) {
 
         {view === "laboratories" && (
           <>
-            {lab === "all" ? (
-              <>
-                <section className="panel labSummaryPanel">
-                  <div className="panelHead">
-                    <div><h2>Свод по 8 ЦКДЛ</h2><p>Выберите куст только когда нужна детализация по адресам и уровням</p></div>
-                  </div>
-                  <div className="labSummaryGrid">
-                    {labDetails.map((item) => {
-                      const included = item.rows.filter((x) => x.includedInKpi).length;
-                      const coverage = item.rows.length ? included / item.rows.length * 100 : 0;
-                      return (
-                        <button key={item.name} className="labSummaryCard" onClick={() => openLab(item.name)}>
-                          <div className="labSummaryTop">
-                            <div><strong>{item.name}</strong><span>{item.addresses.length} адресов · {item.rows.length} позиций</span></div>
-                            <div className="labSummaryKpi">{pct(item.kpi)}</div>
-                          </div>
-                          <div className="summaryStats">
-                            <div><span>В расчёте</span><strong>{included}</strong></div>
-                            <div><span>Охват парка</span><strong>{pct(coverage)}</strong></div>
-                            <div><span>Уточнений</span><strong>{item.reviewCount}</strong></div>
-                          </div>
-                          <div className="summaryProgress"><span style={{width: `${Math.min(item.kpi,100)}%`}} /></div>
-                          <div className="openHint">Открыть ЦКДЛ →</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
+            <div className="labSelector">
+              <button className={lab === "all" ? "active" : ""} onClick={() => setLab("all")}>Все ЦКДЛ</button>
+              {data.laboratories.map((x) => <button key={x.name} className={lab === x.name ? "active" : ""} onClick={() => setLab(x.name)}>{x.name}</button>)}
+            </div>
 
-                <section className="panel">
-                  <div className="panelHead"><div><h2>Сравнение ЦКДЛ</h2><p>КПД, объём, мощность и качество исходных данных в одном месте</p></div></div>
-                  <div className="labComparison">
-                    <div className="comparisonHead"><span>ЦКДЛ</span><span>КПД</span><span>Факт</span><span>Мощность/ч</span><span>Приборов в расчёте</span><span>Уточнений</span></div>
-                    {labDetails.map((item) => (
-                      <button key={item.name} className="comparisonRow" onClick={() => openLab(item.name)}>
-                        <strong>{item.name}</strong>
-                        <span className="comparisonKpi">{pct(item.kpi)}</span>
-                        <span>{fmt(item.fact)}</span>
-                        <span>{fmt(item.capacityPerHour)}</span>
-                        <span>{item.analyzers}</span>
-                        <span className={item.reviewCount ? "comparisonWarn" : ""}>{item.reviewCount}</span>
-                      </button>
-                    ))}
+            {(lab === "all" ? labDetails : labDetails.filter((x) => x.name === lab)).map((item) => (
+              <section className="labWorkspace panel" key={item.name}>
+                <div className="labWorkspaceHead">
+                  <div>
+                    <h2>{item.name}</h2>
+                    <p>{item.addresses.length} адресов · {item.rows.length} единиц оборудования · {item.analyzers} приборов в расчёте мощности</p>
                   </div>
-                </section>
-              </>
-            ) : (
-              <>
-                <div className="labSelector compact">
-                  <button className="backToSummary" onClick={() => setLab("all")}>← Все ЦКДЛ</button>
-                  {data.laboratories.map((x) => <button key={x.name} className={lab === x.name ? "active" : ""} onClick={() => setLab(x.name)}>{x.name}</button>)}
+                  <div className="bigKpi"><span>КПД</span><strong>{pct(item.kpi)}</strong></div>
                 </div>
 
-                {labDetails.filter((x) => x.name === lab).map((item) => (
-                  <section className="labWorkspace panel" key={item.name}>
-                    <div className="labWorkspaceHead">
-                      <div>
-                        <h2>{item.name}</h2>
-                        <p>{item.addresses.length} адресов · {item.rows.length} единиц оборудования · {item.analyzers} приборов в расчёте мощности</p>
-                      </div>
-                      <div className="bigKpi"><span>КПД</span><strong>{pct(item.kpi)}</strong></div>
-                    </div>
+                <div className="levelBreakdown">
+                  {item.levelBreakdown.map((g) => (
+                    <article key={g.name}>
+                      <span>{g.name}</span>
+                      <strong>{pct(g.kpi)}</strong>
+                      <small>{g.count} позиций · {g.included} в расчёте · {g.issues} вопросов</small>
+                    </article>
+                  ))}
+                </div>
 
-                    <div className="levelBreakdown">
-                      {item.levelBreakdown.map((g) => (
-                        <article key={g.name}>
-                          <span>{g.name}</span>
-                          <strong>{pct(g.kpi)}</strong>
-                          <small>{g.count} позиций · {g.included} в расчёте · {g.issues} вопросов</small>
-                        </article>
-                      ))}
-                    </div>
-
-                    <div className="addressList">
-                      {item.addresses.map((addr) => {
-                        const rows = item.rows.filter((x) => x.address === addr);
-                        const g = groupKpi(rows);
-                        return (
-                          <button key={addr} className="addressRow" onClick={() => {setAddress(addr);setLab(item.name);setView("equipment");}}>
-                            <div><strong>{addr}</strong><span>{rows.length} единиц оборудования</span></div>
-                            <div><span>КПД адреса</span><strong>{pct(g.kpi)}</strong></div>
-                            <div><span>В расчёте</span><strong>{g.included}</strong></div>
-                            <div><span>Уточнений</span><strong>{g.issues}</strong></div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </section>
-                ))}
-              </>
-            )}
+                <div className="addressList">
+                  {item.addresses.map((addr) => {
+                    const rows = item.rows.filter((x) => x.address === addr);
+                    const g = groupKpi(rows);
+                    return (
+                      <button key={addr} className="addressRow" onClick={() => {setAddress(addr);setLab(item.name);setView("equipment");}}>
+                        <div><strong>{addr}</strong><span>{rows.length} единиц оборудования</span></div>
+                        <div><span>КПД адреса</span><strong>{pct(g.kpi)}</strong></div>
+                        <div><span>В расчёте</span><strong>{g.included}</strong></div>
+                        <div><span>Уточнений</span><strong>{g.issues}</strong></div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </>
         )}
 
@@ -537,107 +308,34 @@ export function Dashboard({ data }: { data: DashboardData }) {
               <div><h2>Что нужно уточнить</h2><p>Каждая карточка содержит конкретный вопрос для заведующего ЦКДЛ</p></div>
               <div className="count">{reviewRows.length} позиций</div>
             </div>
-            {!accessLab && (
-              <div className="issuesLoginHero">
-                <div>
-                  <span className="issuesLoginEyebrow">Рабочий режим ЦКДЛ</span>
-                  <h3>Войти как заведующий ЦКДЛ</h3>
-                  <p>После входа система покажет вопросы вашего куста и откроет формы ответа. Другие ЦКДЛ редактировать нельзя.</p>
-                </div>
-                <div className="issuesLoginForm">
-                  <input
-                    value={accessCode}
-                    onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
-                    onKeyDown={(e) => e.key === "Enter" && login()}
-                    placeholder="Введите код ЦКДЛ"
-                    autoComplete="off"
-                  />
-                  <button onClick={login} disabled={accessBusy || !accessCode.trim()}>
-                    {accessBusy ? "Проверяем…" : "Войти"}
-                  </button>
-                  {accessError && <span>{accessError}</span>}
-                </div>
-              </div>
-            )}
-            {accessLab && (
-              <div className="issuesNotice accessGranted">
-                Режим редактирования: <strong>{accessLab}</strong>. Формы ответа доступны только для этого куста.
-              </div>
-            )}
             <div className="issuesWorkspace">
-              {reviewRows
-                .filter((x) => !accessLab || x.laboratory === accessLab || lab === "all")
-                .map((x) => {
-                  const form = answers[x.id] ?? { response: "", confirmedBy: "", busy: false, error: "", saved: false };
-                  const editable = accessLab === x.laboratory;
-                  return (
-                    <article className="issueDetailCard" key={x.id}>
-                      <div className="issueDetailHead">
-                        <div>
-                          <div className="issueBreadcrumb">{x.laboratory} · {x.level}</div>
-                          <h3>{x.manufacturer} {x.model}</h3>
-                        </div>
-                        <StatusBadge status={x.status} />
-                      </div>
-                      <div className="issueFacts">
-                        <div><span>Адрес</span><strong>{x.address || "не указан"}</strong></div>
-                        <div><span>Серийный номер</span><strong>{x.serials.join(", ") || "не указан"}</strong></div>
-                        <div><span>Сейчас принято</span><strong>{x.capacityPerHour ? `${fmt(x.capacityPerHour)} ${labelUnit(x)}` : "—"}</strong></div>
-                        <div><span>Тех. статус</span><strong>{x.technicalStatus || "—"}</strong></div>
-                      </div>
-                      <div className="questionBox">
-                        <span>Что нужно уточнить</span>
-                        <strong>{x.question}</strong>
-                      </div>
-
-                      {x.response ? (
-                        <div className="submittedAnswer">
-                          <span>Ответ ЦКДЛ получен</span>
-                          <p>{x.response}</p>
-                          <small>{x.confirmedBy}{x.confirmedAt ? ` · ${x.confirmedAt}` : ""}</small>
-                        </div>
-                      ) : editable ? (
-                        <div className="answerForm">
-                          <label>
-                            <span>Ответ / уточняющая информация</span>
-                            <textarea
-                              value={form.response}
-                              onChange={(e) => updateAnswer(x.id, { response: e.target.value })}
-                              placeholder="Например: комплекс состоит из 2 × XN-10 и 1 × SP-10. Серийные номера…"
-                              rows={4}
-                            />
-                          </label>
-                          <label>
-                            <span>ФИО и должность подтверждающего</span>
-                            <input
-                              value={form.confirmedBy}
-                              onChange={(e) => updateAnswer(x.id, { confirmedBy: e.target.value })}
-                              placeholder="Иванова И.И., заведующий КДЛ"
-                            />
-                          </label>
-                          {form.error && <div className="formError">{form.error}</div>}
-                          {form.saved && <div className="formSuccess">Ответ сохранён. Обновляем данные…</div>}
-                          <button
-                            className="submitAnswer"
-                            onClick={() => submitAnswer(x)}
-                            disabled={form.busy || !form.response.trim() || !form.confirmedBy.trim()}
-                          >
-                            {form.busy ? "Сохраняем…" : "Отправить уточнение"}
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="answerRoute">
-                          <span>Маршрут ответа</span>
-                          <p>
-                            Эта позиция редактируется только после входа под кодом <strong>{x.laboratory}</strong>.
-                            Ответ будет записан прямо в рабочую таблицу и попадёт в журнал изменений.
-                          </p>
-                        </div>
-                      )}
-                      {x.sourceUrl && <a className="sourceLink" href={x.sourceUrl} target="_blank" rel="noreferrer">Паспортный источник мощности →</a>}
-                    </article>
-                  );
-                })}
+              {reviewRows.map((x) => (
+                <article className="issueDetailCard" key={x.id}>
+                  <div className="issueDetailHead">
+                    <div>
+                      <div className="issueBreadcrumb">{x.laboratory} · {x.level}</div>
+                      <h3>{x.manufacturer} {x.model}</h3>
+                    </div>
+                    <StatusBadge status={x.status} />
+                  </div>
+                  <div className="issueFacts">
+                    <div><span>Адрес</span><strong>{x.address || "не указан"}</strong></div>
+                    <div><span>Серийный номер</span><strong>{x.serials.join(", ") || "не указан"}</strong></div>
+                    <div><span>Сейчас принято</span><strong>{x.capacityPerHour ? `${fmt(x.capacityPerHour)} ${labelUnit(x)}` : "—"}</strong></div>
+                    <div><span>Тех. статус</span><strong>{x.technicalStatus || "—"}</strong></div>
+                  </div>
+                  <div className="questionBox">
+                    <span>Вопрос ЦКДЛ</span>
+                    <strong>{x.question}</strong>
+                  </div>
+                  <div className="answerRoute">
+                    <span>Маршрут ответа</span>
+                    <p>Заведующий открывает эту позицию, вносит уточнение и подтверждает данные. Ответ сохраняется в рабочую Google Таблицу; после проверки РЦ статус меняется на «Проверено».</p>
+                    <button disabled>Ответить на позицию — подключаем авторизацию</button>
+                  </div>
+                  {x.sourceUrl && <a className="sourceLink" href={x.sourceUrl} target="_blank" rel="noreferrer">Паспортный источник мощности →</a>}
+                </article>
+              ))}
             </div>
           </section>
         )}
@@ -645,67 +343,6 @@ export function Dashboard({ data }: { data: DashboardData }) {
         <footer><span>Источник: рабочая Google Таблица</span><span>Обновлено: {new Date(data.updatedAt).toLocaleString("ru-RU")}</span></footer>
       </section>
     </main>
-  );
-}
-
-function ParkStructureChart({items,total}:{items:{name:string;count:number}[];total:number}) {
-  let cursor = 0;
-  const segments = items.map((item, index) => {
-    const start = total ? cursor / total * 100 : 0;
-    cursor += item.count;
-    const end = total ? cursor / total * 100 : 0;
-    return { ...item, index, start, end };
-  });
-  const fills = segments.map((s) => `var(--chart-${s.index % 5}) ${s.start}% ${s.end}%`).join(", ");
-  return (
-    <div className="parkChart">
-      <div className="donut" style={{background: `conic-gradient(${fills})`}}>
-        <div className="donutHole"><strong>{fmt(total)}</strong><span>позиций</span></div>
-      </div>
-      <div className="chartLegend">
-        {segments.map((s) => (
-          <div key={s.name}><i style={{background:`var(--chart-${s.index % 5})`}} /><span>{s.name}</span><strong>{s.count}</strong><small>{total ? pct(s.count/total*100) : "—"}</small></div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function InclusionChart({items}:{items:{name:string;total:number;included:number;excluded:number}[]}) {
-  return (
-    <div className="stackChart">
-      {items.map((x) => {
-        const p = x.total ? x.included/x.total*100 : 0;
-        return (
-          <div className="stackRow" key={x.name}>
-            <strong>{x.name}</strong>
-            <div className="stackBar"><span style={{width:`${p}%`}} /><i style={{width:`${100-p}%`}} /></div>
-            <span>{x.included}/{x.total}</span>
-          </div>
-        );
-      })}
-      <div className="chartKey"><span><i className="keyIncluded" />В расчёте</span><span><i className="keyExcluded" />Вне расчёта</span></div>
-    </div>
-  );
-}
-
-function IssuesChart({items}:{items:{name:string;total:number;answered:number}[]}) {
-  const max = Math.max(1, ...items.map((x) => x.total));
-  return (
-    <div className="issuesChart">
-      {items.map((x) => (
-        <div className="issueBarRow" key={x.name}>
-          <strong>{x.name}</strong>
-          <div className="issueBarTrack">
-            <span style={{width:`${x.total/max*100}%`}}>
-              {x.answered > 0 && <i style={{width:`${x.total ? x.answered/x.total*100 : 0}%`}} />}
-            </span>
-          </div>
-          <b>{x.total}</b>
-        </div>
-      ))}
-      <div className="chartNote">Тёмная часть внутри полосы — уже полученные ответы ЦКДЛ.</div>
-    </div>
   );
 }
 
