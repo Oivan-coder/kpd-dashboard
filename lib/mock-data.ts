@@ -1,0 +1,57 @@
+import type { Analyzer, LaboratorySummary } from "./types";
+
+export const laboratories: LaboratorySummary[] = [
+  { name: "Истра", kpi: 18.6, capacityPerHour: 0, analyzers: 0, reviewCount: 1, errorCount: 0 },
+  { name: "Лобня", kpi: 23.2, capacityPerHour: 0, analyzers: 0, reviewCount: 0, errorCount: 0 },
+  { name: "Одинцово", kpi: 37.8, capacityPerHour: 0, analyzers: 0, reviewCount: 0, errorCount: 0 },
+  { name: "Балашиха", kpi: 39.4, capacityPerHour: 0, analyzers: 0, reviewCount: 1, errorCount: 0 },
+  { name: "Королёв", kpi: 39.8, capacityPerHour: 0, analyzers: 0, reviewCount: 0, errorCount: 0 },
+  { name: "Коломна", kpi: 26.6, capacityPerHour: 0, analyzers: 0, reviewCount: 0, errorCount: 0 },
+  { name: "Домодедово", kpi: 31.1, capacityPerHour: 0, analyzers: 0, reviewCount: 0, errorCount: 0 },
+  { name: "Подольск", kpi: 31.6, capacityPerHour: 0, analyzers: 0, reviewCount: 0, errorCount: 0 },
+];
+
+export const analyzers: Analyzer[] = [
+  {
+    id: "istra-xn9000",
+    laboratory: "Истра",
+    level: 3,
+    direction: "Гематология",
+    manufacturer: "Sysmex",
+    model: "XN-9000",
+    serials: ["55863", "55871", "55873", "55870"],
+    status: "review",
+    capacityPerHour: null,
+    capacityUnit: "samples/hour",
+    includedInKpi: true,
+    issue: "Уточнить количество аналитических модулей XN-10/XN-20 и определить, есть ли среди серийных номеров SP-10.",
+  },
+  {
+    id: "bal-xn9000",
+    laboratory: "Балашиха",
+    level: 3,
+    direction: "Гематология",
+    manufacturer: "Sysmex",
+    model: "XN-9000",
+    serials: ["48181", "48227", "48358"],
+    status: "review",
+    capacityPerHour: null,
+    capacityUnit: "samples/hour",
+    includedInKpi: true,
+    issue: "Уточнить число аналитических голов. SP-10 не добавляет производительность.",
+  },
+  {
+    id: "dom-xn9000",
+    laboratory: "Домодедово",
+    level: 3,
+    direction: "Гематология",
+    manufacturer: "Sysmex",
+    model: "XN-9000",
+    serials: ["30839", "44612", "24991"],
+    status: "verified",
+    capacityPerHour: 200,
+    capacityUnit: "samples/hour",
+    includedInKpi: true,
+    issue: "Две аналитические головы; 24991 — модуль окраски и в мощность не включается.",
+  },
+];
