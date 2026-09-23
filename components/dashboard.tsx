@@ -71,6 +71,13 @@ export function Dashboard({ data }: { data: DashboardData }) {
   const [commentBusy, setCommentBusy] = useState(false);
   const [commentError, setCommentError] = useState("");
 
+  const [hourTarget, setHourTarget] = useState<Analyzer | null>(null);
+  const [hourValue, setHourValue] = useState("210");
+  const [hourReason, setHourReason] = useState("");
+  const [hourAuthor, setHourAuthor] = useState("");
+  const [hourBusy, setHourBusy] = useState(false);
+  const [hourError, setHourError] = useState("");
+
   useEffect(() => {
     fetch("/api/session")
       .then((r) => r.json())
@@ -239,6 +246,11 @@ export function Dashboard({ data }: { data: DashboardData }) {
     answered: reviewRows.filter((r) => r.laboratory === x.name && Boolean(r.response)).length,
   })), [data.laboratories, reviewRows]);
 
+  const pendingHourRequests = useMemo(
+    () => data.analyzers.filter((x) => x.proposedHours && x.hoursStatus === "На согласовании"),
+    [data.analyzers]
+  );
+
   const incomingResponses = useMemo(
     () => data.analyzers.filter((x) => Boolean(x.response)).sort((a, b) => {
       const aPending = a.responseStatus === "Получен ответ" ? 0 : 1;
@@ -335,6 +347,55 @@ export function Dashboard({ data }: { data: DashboardData }) {
     }
   };
 
+  const openHours = (item: Analyzer) => {
+    setHourTarget(item);
+    setHourValue(String(item.proposedHours || item.approvedHours || item.defaultHours || 210));
+    setHourReason(item.hoursReason || "");
+    setHourAuthor("");
+    setHourError("");
+  };
+
+  const submitHours = async () => {
+    if (!hourTarget) return;
+    setHourBusy(true);
+    setHourError("");
+    try {
+      const r = await fetch("/api/hours", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemId: hourTarget.id,
+          hours: Number(hourValue),
+          reason: hourReason,
+          author: hourAuthor,
+        }),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || "Не удалось сохранить");
+      window.location.reload();
+    } catch (e) {
+      setHourError(e instanceof Error ? e.message : "Ошибка сохранения");
+      setHourBusy(false);
+    }
+  };
+
+  const reviewHours = async (item: Analyzer, approved: boolean) => {
+    setAdminBusy(item.id + (approved ? "hours-approve" : "hours-reject"));
+    try {
+      const r = await fetch("/api/admin/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: item.id, kind: "hours", approved, adminName }),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || "Не удалось сохранить");
+      window.location.reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Ошибка");
+      setAdminBusy(null);
+    }
+  };
+
   const reviewResponse = async (item: Analyzer, nextStatus: "Принято" | "На доработку") => {
     setAdminBusy(item.id + nextStatus);
     try {
@@ -358,6 +419,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
   const includedTotal = data.analyzers.filter((x) => x.includedInKpi).length;
   const canComment = (item: Analyzer) =>
     session.role === "admin" || (session.role === "lab" && session.laboratory === item.laboratory);
+  const canEditHours = canComment;
 
   return (
     <main className="appShell">
@@ -376,7 +438,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
             Уточнения <span className="navCount">{reviewTotal}</span>
           </button>
           <button className={view === "admin" ? "active adminNav" : "adminNav"} onClick={() => setView("admin")}>
-            Админ <span className="navCount neutral">{incomingResponses.filter((x) => x.responseStatus === "Получен ответ").length}</span>
+            Админ <span className="navCount neutral">{incomingResponses.filter((x) => x.responseStatus === "Получен ответ").length + pendingHourRequests.length}</span>
           </button>
         </nav>
 
@@ -448,26 +510,43 @@ export function Dashboard({ data }: { data: DashboardData }) {
               <article className="metric warn"><span>Требуют уточнения</span><strong>{reviewTotal}</strong><small>{verifiedTotal} позиций верифицировано</small></article>
             </section>
 
+            <section className="methodologyPanel">
+              <div className="methodologyMain">
+                <span className="methodologyEyebrow">Методика расчёта</span>
+                <h2>Как считается КПД оборудования</h2>
+                <div className="formulaBox">
+                  <strong>КПД = фактический объём / расчётная мощность × 100%</strong>
+                  <span>Расчётная мощность = паспортная производительность прибора × расчётные часы работы за месяц</span>
+                </div>
+              </div>
+              <div className="methodologyFacts">
+                <div><span>Базовое время</span><strong>210 ч/мес</strong><small>используется по умолчанию для каждого включённого прибора</small></div>
+                <div><span>Если режим другой</span><strong>ЦКДЛ предлагает часы</strong><small>с указанием причины; в расчёт они попадут после подтверждения РЦ</small></div>
+                <div><span>В знаменатель</span><strong>2–3 уровень / ЦКДЛ</strong><small>только оборудование, включённое в контур расчёта и имеющее принятую паспортную мощность</small></div>
+                <div><span>Исключаются</span><strong>неработающее и вне методики</strong><small>1 уровень/экспресс, ПЦР, ИФА, СОЭ, HbA1c и другие согласованные исключения</small></div>
+              </div>
+            </section>
+
             <div className="analyticsGrid two">
               <section className="panel chartPanel">
-                <div className="panelHead"><div><h2>КПД по ЦКДЛ</h2><p>Сравнение восьми кустов</p></div></div>
+                <div className="panelHead"><div><h2>КПД по ЦКДЛ</h2><p>Отвечает на вопрос: какой куст использует большую долю своей расчётной мощности</p></div></div>
                 <KpiBars items={data.laboratories.map((x) => ({ name: x.name, value: x.kpi }))} onSelect={openLab} />
               </section>
 
               <section className="panel chartPanel">
-                <div className="panelHead"><div><h2>Факт и расчётная мощность</h2><p>Использование месячного потенциала каждого куста</p></div></div>
+                <div className="panelHead"><div><h2>Факт vs расчётная мощность</h2><p>Серый фон — потенциальный объём за месяц, синяя полоса — фактически выполненный объём</p></div></div>
                 <FactCapacityChart items={data.laboratories.map((x) => ({ name: x.name, fact: x.fact, capacity: x.monthlyCapacity }))} />
               </section>
             </div>
 
             <div className="analyticsGrid two">
               <section className="panel chartPanel">
-                <div className="panelHead"><div><h2>Структура парка по уровням</h2><p>Все учётные позиции</p></div></div>
+                <div className="panelHead"><div><h2>Структура парка по уровням</h2><p>Показывает, где физически сосредоточено оборудование и какая часть парка относится к целевому контуру</p></div></div>
                 <DonutBreakdown items={levelStructure} total={data.analyzers.length} />
               </section>
 
               <section className="panel chartPanel">
-                <div className="panelHead"><div><h2>Карта проблемных данных</h2><p>Открытые вопросы и уже полученные ответы</p></div></div>
+                <div className="panelHead"><div><h2>Карта уточнений</h2><p>Показывает, в каких ЦКДЛ остаются вопросы по модели, конфигурации, мощности или статусу оборудования</p></div></div>
                 <IssueMap items={issuesByLab} />
               </section>
             </div>
@@ -590,8 +669,8 @@ export function Dashboard({ data }: { data: DashboardData }) {
               labs={data.laboratories.map((x) => x.name)} />
 
             {equipmentMode === "work"
-              ? <EquipmentTable rows={filtered} canComment={canComment} openComment={openComment} />
-              : <TechnicalEquipmentTable rows={filtered} canComment={canComment} openComment={openComment} />}
+              ? <EquipmentTable rows={filtered} canComment={canComment} openComment={openComment} canEditHours={canEditHours} openHours={openHours} />
+              : <TechnicalEquipmentTable rows={filtered} canComment={canComment} openComment={openComment} canEditHours={canEditHours} openHours={openHours} />}
           </section>
         )}
 
@@ -677,7 +756,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
           <section className="panel">
             <div className="panelHead">
               <div><h2>Входящие уточнения</h2><p>Ответы заведующих ЦКДЛ и их статус обработки</p></div>
-              <div className="count">{incomingResponses.filter((x) => x.responseStatus === "Получен ответ").length} новых</div>
+              <div className="count">{incomingResponses.filter((x) => x.responseStatus === "Получен ответ").length + pendingHourRequests.length} новых</div>
             </div>
 
             {session.role !== "admin" ? (
@@ -707,6 +786,31 @@ export function Dashboard({ data }: { data: DashboardData }) {
                   ))}
                   {!incomingResponses.length && <div className="emptyState">Ответов от ЦКДЛ пока нет.</div>}
                 </div>
+
+                <div className="adminSectionTitle">
+                  <div><h2>Изменение расчётных часов</h2><p>Предложения ЦКДЛ, которые меняют знаменатель и итоговый КПД</p></div>
+                  <span>{pendingHourRequests.length} на согласовании</span>
+                </div>
+                <div className="adminQueue">
+                  {pendingHourRequests.map((x) => (
+                    <article className="adminCard hourRequestCard" key={x.id}>
+                      <div className="adminCardHead">
+                        <div><span>{x.laboratory} · {x.level}</span><h3>{x.manufacturer} {x.model}</h3><small>{x.address}</small></div>
+                        <span className="responseState new">На согласовании</span>
+                      </div>
+                      <div className="hourCompare">
+                        <div><span>Сейчас в расчёте</span><strong>{x.effectiveHours} ч/мес</strong></div>
+                        <div><span>Предложено ЦКДЛ</span><strong>{x.proposedHours} ч/мес</strong></div>
+                      </div>
+                      <div className="adminQuestion"><span>Причина</span><p>{x.hoursReason || "Не указана"}</p></div>
+                      <div className="adminActions">
+                        <button className="acceptBtn" onClick={() => reviewHours(x, true)} disabled={!adminName.trim() || Boolean(adminBusy)}>{adminBusy === x.id + "hours-approve" ? "Сохраняем…" : "Утвердить часы"}</button>
+                        <button className="revisionBtn" onClick={() => reviewHours(x, false)} disabled={!adminName.trim() || Boolean(adminBusy)}>{adminBusy === x.id + "hours-reject" ? "Сохраняем…" : "Отклонить"}</button>
+                      </div>
+                    </article>
+                  ))}
+                  {!pendingHourRequests.length && <div className="emptyState">Новых предложений по расчётным часам нет.</div>}
+                </div>
               </>
             )}
           </section>
@@ -714,6 +818,21 @@ export function Dashboard({ data }: { data: DashboardData }) {
 
         <footer><span>Источник: рабочая Google Таблица</span><span>Обновлено: {new Date(data.updatedAt).toLocaleString("ru-RU")}</span></footer>
       </section>
+
+      {hourTarget && (
+        <div className="modalBackdrop" onMouseDown={() => setHourTarget(null)}>
+          <div className="commentModal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modalHead"><div><span>{hourTarget.laboratory}</span><h3>Расчётные часы · {hourTarget.manufacturer} {hourTarget.model}</h3></div><button onClick={() => setHourTarget(null)}>×</button></div>
+            <p>{hourTarget.address}</p>
+            <div className="hourCurrent"><span>Текущее значение в расчёте</span><strong>{hourTarget.effectiveHours} ч/мес</strong><small>{hourTarget.approvedHours ? "утверждено РЦ" : "базовое значение методики"}</small></div>
+            <label><span>Предлагаемые часы в месяц</span><input type="number" min="1" max="744" value={hourValue} onChange={(e) => setHourValue(e.target.value)} /></label>
+            <label><span>Почему режим отличается от 210 часов</span><textarea rows={4} value={hourReason} onChange={(e) => setHourReason(e.target.value)} placeholder="Например: прибор работает круглосуточно 7 дней в неделю / только 2 смены / ограниченный график…" /></label>
+            <label><span>ФИО и должность</span><input value={hourAuthor} onChange={(e) => setHourAuthor(e.target.value)} placeholder="Иванова И.И., заведующий КДЛ" /></label>
+            {hourError && <div className="formError">{hourError}</div>}
+            <div className="modalActions"><button onClick={() => setHourTarget(null)}>Отмена</button><button className="saveCommentBtn" onClick={submitHours} disabled={hourBusy || !hourValue || !hourReason.trim() || !hourAuthor.trim()}>{hourBusy ? "Отправляем…" : "Отправить на согласование"}</button></div>
+          </div>
+        </div>
+      )}
 
       {commentTarget && (
         <div className="modalBackdrop" onMouseDown={() => setCommentTarget(null)}>
@@ -834,11 +953,11 @@ function Filters(props: {
   );
 }
 
-function EquipmentTable({ rows, canComment, openComment }: { rows: Analyzer[]; canComment: (item: Analyzer) => boolean; openComment: (item: Analyzer) => void }) {
+function EquipmentTable({ rows, canComment, openComment, canEditHours, openHours }: { rows: Analyzer[]; canComment: (item: Analyzer) => boolean; openComment: (item: Analyzer) => void; canEditHours: (item: Analyzer) => boolean; openHours: (item: Analyzer) => void }) {
   return (
     <div className="tableWrap">
       <table className="equipmentTable">
-        <thead><tr><th>ЦКДЛ / адрес</th><th>Уровень</th><th>Направление</th><th>Анализатор</th><th>Серийный №</th><th>Факт</th><th>Мощность</th><th>КПД</th><th>Тех. статус</th><th>Расчёт</th><th>Проверка</th><th>Комментарий</th></tr></thead>
+        <thead><tr><th>ЦКДЛ / адрес</th><th>Уровень</th><th>Направление</th><th>Анализатор</th><th>Серийный №</th><th>Факт</th><th>Мощность</th><th>Часы/мес</th><th>КПД</th><th>Тех. статус</th><th>Расчёт</th><th>Проверка</th><th>Комментарий</th></tr></thead>
         <tbody>
           {rows.map((x) => (
             <tr key={x.id} className={x.status === "review" ? "rowReview" : x.status === "error" ? "rowError" : undefined}>
@@ -848,24 +967,25 @@ function EquipmentTable({ rows, canComment, openComment }: { rows: Analyzer[]; c
               <td>{x.serials.join(", ") || "—"}</td>
               <td>{x.factInCalculation ? fmt(x.factInCalculation) : "—"}</td>
               <td>{x.capacityPerHour ? `${fmt(x.capacityPerHour)} ${labelUnit(x)}` : "—"}</td>
+              <td><strong>{x.effectiveHours}</strong>{x.hoursStatus && <div className="subtle">{x.hoursStatus}</div>}{canEditHours(x) && <button className="hoursBtn" onClick={() => openHours(x)}>Изменить</button>}</td>
               <td>{pct(x.rowKpi)}</td><td>{x.technicalStatus || "—"}</td>
               <td>{x.includedInKpi ? <span className="calcYes">Включён</span> : <span className="calcNo">Исключён</span>}</td>
               <td><StatusBadge status={x.status} />{x.question && <div className="questionMini">{x.question}</div>}</td>
               <td>{x.labComment && <div className="commentPreview">{x.labComment}</div>}<button className="commentBtn" disabled={!canComment(x)} onClick={() => openComment(x)}>{x.labComment ? "Изменить" : "Добавить"}</button></td>
             </tr>
           ))}
-          {!rows.length && <tr><td colSpan={12} className="empty">Нет позиций по выбранным фильтрам</td></tr>}
+          {!rows.length && <tr><td colSpan={13} className="empty">Нет позиций по выбранным фильтрам</td></tr>}
         </tbody>
       </table>
     </div>
   );
 }
 
-function TechnicalEquipmentTable({ rows, canComment, openComment }: { rows: Analyzer[]; canComment: (item: Analyzer) => boolean; openComment: (item: Analyzer) => void }) {
+function TechnicalEquipmentTable({ rows, canComment, openComment, canEditHours, openHours }: { rows: Analyzer[]; canComment: (item: Analyzer) => boolean; openComment: (item: Analyzer) => void; canEditHours: (item: Analyzer) => boolean; openHours: (item: Analyzer) => void }) {
   return (
     <div className="tableWrap technicalTableWrap">
       <table className="equipmentTable technicalTable">
-        <thead><tr><th>ЦКДЛ</th><th>МО / адрес</th><th>Уровень / этаж</th><th>Вид</th><th>Производитель / модель</th><th>Инв. №</th><th>Серийный №</th><th>Год / ввод</th><th>Балансодержатель</th><th>Условия владения</th><th>СПИ / износ</th><th>БРЕГИС</th><th>Тех. статус</th><th>Ответственный</th><th>Исходная мощность</th><th>Принятая мощность</th><th>КПД</th><th>Верификация</th><th>Источник / комментарии</th></tr></thead>
+        <thead><tr><th>ЦКДЛ</th><th>МО / адрес</th><th>Уровень / этаж</th><th>Вид</th><th>Производитель / модель</th><th>Инв. №</th><th>Серийный №</th><th>Год / ввод</th><th>Балансодержатель</th><th>Условия владения</th><th>СПИ / износ</th><th>БРЕГИС</th><th>Тех. статус</th><th>Ответственный</th><th>Исходная мощность</th><th>Принятая мощность</th><th>Часы/мес</th><th>КПД</th><th>Верификация</th><th>Источник / комментарии</th></tr></thead>
         <tbody>
           {rows.map((x) => (
             <tr key={x.id} className={x.status === "review" ? "rowReview" : x.status === "error" ? "rowError" : undefined}>
@@ -882,12 +1002,13 @@ function TechnicalEquipmentTable({ rows, canComment, openComment }: { rows: Anal
               <td><div className="technicalLong">{x.responsiblePerson || "—"}</div></td>
               <td>{x.originalCapacity || x.sourceCapacity || "—"}</td>
               <td>{x.capacityPerHour ? `${fmt(x.capacityPerHour)} ${labelUnit(x)}` : "—"}</td>
+              <td><strong>{x.effectiveHours}</strong>{x.hoursStatus && <div className="subtle">{x.hoursStatus}</div>}{canEditHours(x) && <button className="hoursBtn" onClick={() => openHours(x)}>Изменить</button>}</td>
               <td>{pct(x.rowKpi)}</td>
               <td><StatusBadge status={x.status} /><div className="subtle">{x.verificationText || "—"}</div></td>
               <td>{x.sourceUrl && <a className="sourceLink inlineSource" href={x.sourceUrl} target="_blank" rel="noreferrer">Источник</a>}{x.powerComment && <div className="subtle technicalLong">{x.powerComment}</div>}{x.labComment && <div className="commentPreview">{x.labComment}</div>}{canComment(x) && <button className="commentBtn" onClick={() => openComment(x)}>{x.labComment ? "Изменить комментарий" : "Добавить комментарий"}</button>}</td>
             </tr>
           ))}
-          {!rows.length && <tr><td colSpan={19} className="empty">Нет позиций по выбранным фильтрам</td></tr>}
+          {!rows.length && <tr><td colSpan={20} className="empty">Нет позиций по выбранным фильтрам</td></tr>}
         </tbody>
       </table>
     </div>
