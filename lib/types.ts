@@ -15,6 +15,8 @@ export type Analyzer = {
   model: string;
   sourceManufacturer?: string;
   sourceModel?: string;
+  sourceCapacity?: string;
+  originalCapacity?: string;
   inventoryNumber: string;
   serials: string[];
   manufactureYear: string;
