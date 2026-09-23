@@ -36,6 +36,12 @@ export type Analyzer = {
   factInCalculation: number;
   monthlyCapacity: number;
   rowKpi: number | null;
+  defaultHours: number;
+  proposedHours?: number;
+  approvedHours?: number;
+  effectiveHours: number;
+  hoursReason?: string;
+  hoursStatus?: string;
   issue?: string;
   question?: string;
   sourceUrl?: string;
