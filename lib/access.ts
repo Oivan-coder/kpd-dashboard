@@ -171,6 +171,157 @@ export async function saveEquipmentComment(args: {
   return { laboratory, rowNumber, now };
 }
 
+async function ensureParametersSheet() {
+  const sheets = await sheetsClient(false);
+  if (!sheets) throw new Error("Sheets client unavailable");
+  const id = spreadsheetId();
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: id,
+    fields: "sheets.properties",
+  });
+  const exists = (meta.data.sheets ?? []).some((s) => s.properties?.title === "Параметры КПД");
+  if (!exists) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: id,
+      requestBody: {
+        requests: [{
+          addSheet: {
+            properties: {
+              title: "Параметры КПД",
+              gridProperties: { rowCount: 1000, columnCount: 8 },
+            },
+          },
+        }],
+      },
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: id,
+      range: "'Параметры КПД'!A1:H1",
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [[
+          "ID позиции","ЦКДЛ","Предложенные часы/мес","Причина","Статус","Утверждённые часы/мес","Автор","Дата изменения"
+        ]],
+      },
+    });
+  }
+  return { sheets, id };
+}
+
+async function upsertHourParameter(args: {
+  itemId: string;
+  laboratory: string;
+  proposedHours?: number;
+  reason?: string;
+  status: string;
+  approvedHours?: number;
+  author: string;
+}) {
+  const { sheets, id } = await ensureParametersSheet();
+  const now = new Date().toLocaleString("ru-RU", { timeZone: "Europe/Moscow" });
+  const read = await sheets.spreadsheets.values.get({
+    spreadsheetId: id,
+    range: "'Параметры КПД'!A2:H1000",
+    valueRenderOption: "FORMATTED_VALUE",
+  });
+  const rows = read.data.values ?? [];
+  const index = rows.findIndex((r) => String(r[0] ?? "").trim() === args.itemId);
+  const values = [[
+    args.itemId,
+    args.laboratory,
+    args.proposedHours ?? "",
+    args.reason ?? "",
+    args.status,
+    args.approvedHours ?? "",
+    args.author,
+    now,
+  ]];
+
+  if (index >= 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: id,
+      range: `'Параметры КПД'!A${index + 2}:H${index + 2}`,
+      valueInputOption: "RAW",
+      requestBody: { values },
+    });
+  } else {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: id,
+      range: "'Параметры КПД'!A:H",
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: { values },
+    });
+  }
+  return now;
+}
+
+export async function proposeCalculationHours(args: {
+  itemId: string;
+  hours: number;
+  reason: string;
+  author: string;
+  session: AccessSession;
+}) {
+  const { laboratory } = parseItemId(args.itemId);
+  if (args.session.role === "lab" && args.session.laboratory !== laboratory) throw new Error("Forbidden");
+  if (!Number.isFinite(args.hours) || args.hours <= 0 || args.hours > 744) throw new Error("Invalid hours");
+  if (!args.reason.trim() || !args.author.trim()) throw new Error("Reason and author are required");
+
+  const now = await upsertHourParameter({
+    itemId: args.itemId,
+    laboratory,
+    proposedHours: args.hours,
+    reason: args.reason.trim(),
+    status: "На согласовании",
+    author: args.author.trim(),
+  });
+
+  await appendLog([
+    now, laboratory, args.itemId.split("-").pop() || "", "", "", "Расчётные часы",
+    "210", String(args.hours), args.author.trim(), "На согласовании",
+  ]);
+
+  return { laboratory, now };
+}
+
+export async function reviewCalculationHours(args: {
+  itemId: string;
+  approved: boolean;
+  adminName: string;
+}) {
+  const { laboratory } = parseItemId(args.itemId);
+  const sheets = await sheetsClient(true);
+  if (!sheets) throw new Error("Sheets client unavailable");
+  const read = await sheets.spreadsheets.values.get({
+    spreadsheetId: spreadsheetId(),
+    range: "'Параметры КПД'!A2:H1000",
+    valueRenderOption: "FORMATTED_VALUE",
+  });
+  const row = (read.data.values ?? []).find((r) => String(r[0] ?? "").trim() === args.itemId);
+  if (!row) throw new Error("Hours proposal not found");
+  const proposed = Number(String(row[2] ?? "").replace(",", "."));
+  if (!Number.isFinite(proposed) || proposed <= 0) throw new Error("Invalid proposal");
+
+  const now = await upsertHourParameter({
+    itemId: args.itemId,
+    laboratory,
+    proposedHours: proposed,
+    reason: String(row[3] ?? ""),
+    status: args.approved ? "Утверждено" : "Отклонено",
+    approvedHours: args.approved ? proposed : undefined,
+    author: args.adminName.trim(),
+  });
+
+  await appendLog([
+    now, laboratory, args.itemId.split("-").pop() || "", "", "", "Статус расчётных часов",
+    "На согласовании", args.approved ? "Утверждено" : "Отклонено", args.adminName.trim(),
+    args.approved ? "Утверждено" : "Отклонено",
+  ]);
+
+  return { laboratory, now };
+}
+
 export async function reviewClarification(args: {
   itemId: string;
   status: "Принято" | "На доработку";
