@@ -5,6 +5,9 @@ export type Analyzer = {
   rowNumber: number;
   laboratory: string;
   organization: string;
+  balanceType: string;
+  balanceHolderDetails: string;
+  floor: string;
   address: string;
   level: string;
   direction: string;
@@ -12,8 +15,16 @@ export type Analyzer = {
   model: string;
   sourceManufacturer?: string;
   sourceModel?: string;
+  inventoryNumber: string;
   serials: string[];
+  manufactureYear: string;
+  commissioningDate: string;
+  usefulLife: string;
+  depreciation: string;
+  bregisConnection: string;
   technicalStatus: string;
+  responsiblePerson: string;
+  note: string;
   status: VerificationStatus;
   verificationText: string;
   capacityPerHour: number | null;
@@ -26,6 +37,8 @@ export type Analyzer = {
   issue?: string;
   question?: string;
   sourceUrl?: string;
+  powerComment?: string;
+  reasonComment?: string;
   response?: string;
   confirmedBy?: string;
   confirmedAt?: string;
