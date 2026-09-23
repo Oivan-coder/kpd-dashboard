@@ -494,3 +494,18 @@ footer{display:flex;justify-content:space-between;gap:12px;color:#8a96a4;font-si
 .hourCompare strong{display:block;font-size:15px;margin-top:3px}
 @media(max-width:1000px){.methodologyPanel{grid-template-columns:1fr}}
 @media(max-width:700px){.methodologyFacts{grid-template-columns:1fr}}
+
+.stackedBreakdown{display:flex;flex-direction:column;gap:9px}
+.stackedRow{display:grid;grid-template-columns:90px 1fr 34px;gap:9px;align-items:center}
+.stackedRow>strong{font-size:10px}
+.stackedRow>span{font-size:9px;color:#7d8996;text-align:right}
+.stackedTrack{height:12px;border-radius:999px;overflow:hidden;background:#eef2f5;display:flex}
+.stackSegment{display:block;height:100%}
+.stack-0{background:#315f91}
+.stack-1{background:#6f94b9}
+.stack-2{background:#9fb6cb}
+.stack-3{background:#c6d4e1}
+.stack-4{background:#e5ebf0}
+.stackedLegend{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:8px}
+.stackedLegend span{display:flex;align-items:center;gap:5px;font-size:8px;color:#7d8996}
+.stackedLegend i{width:9px;height:9px;border-radius:3px}
