@@ -244,6 +244,32 @@ export function Dashboard({ data }: { data: DashboardData }) {
   const verifiedTotal = data.analyzers.filter((x) => x.status === "verified").length;
   const excludedTotal = data.analyzers.filter((x) => x.status === "excluded").length;
 
+  const levelStructure = useMemo(() => {
+    const counts = new Map<string, number>();
+    data.analyzers.forEach((x) => {
+      const key = x.level || "Не указан";
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [data.analyzers]);
+
+  const inclusionByLab = useMemo(() => data.laboratories.map((l) => {
+    const rows = data.analyzers.filter((x) => x.laboratory === l.name);
+    const included = rows.filter((x) => x.includedInKpi).length;
+    return { name: l.name, total: rows.length, included, excluded: Math.max(0, rows.length - included) };
+  }), [data]);
+
+  const issuesByLab = useMemo(() => data.laboratories.map((l) => {
+    const rows = reviewRows.filter((x) => x.laboratory === l.name);
+    return {
+      name: l.name,
+      total: rows.length,
+      answered: rows.filter((x) => Boolean(x.response)).length,
+    };
+  }), [data.laboratories, reviewRows]);
+
   return (
     <main className="appShell">
       <aside className="sideNav">
@@ -348,16 +374,19 @@ export function Dashboard({ data }: { data: DashboardData }) {
               </section>
 
               <section className="panel">
-                <div className="panelHead"><div><h2>КПД по уровням</h2><p>Расчёт из строк, где одновременно есть факт и мощность</p></div></div>
-                <div className="levelTiles">
-                  {levelGroups.map((g) => (
-                    <article key={g.name} className="levelTile">
-                      <span>{g.name}</span>
-                      <strong>{pct(g.kpi)}</strong>
-                      <small>{g.included} приборов · {fmt(g.fact)} факт</small>
-                    </article>
-                  ))}
-                </div>
+                <div className="panelHead"><div><h2>Структура парка по уровням</h2><p>Все {fmt(data.analyzers.length)} учётных позиций</p></div></div>
+                <ParkStructureChart items={levelStructure} total={data.analyzers.length} />
+              </section>
+            </div>
+
+            <div className="overviewAnalytics">
+              <section className="panel">
+                <div className="panelHead"><div><h2>Охват парка расчётом КПД</h2><p>Сколько оборудования каждого куста реально входит в знаменатель</p></div></div>
+                <InclusionChart items={inclusionByLab} />
+              </section>
+              <section className="panel">
+                <div className="panelHead"><div><h2>Карта уточнений</h2><p>Где ещё остаются непроверенные исходные данные</p></div></div>
+                <IssuesChart items={issuesByLab} />
               </section>
             </div>
 
@@ -397,47 +426,97 @@ export function Dashboard({ data }: { data: DashboardData }) {
 
         {view === "laboratories" && (
           <>
-            <div className="labSelector">
-              <button className={lab === "all" ? "active" : ""} onClick={() => setLab("all")}>Все ЦКДЛ</button>
-              {data.laboratories.map((x) => <button key={x.name} className={lab === x.name ? "active" : ""} onClick={() => setLab(x.name)}>{x.name}</button>)}
-            </div>
-
-            {(lab === "all" ? labDetails : labDetails.filter((x) => x.name === lab)).map((item) => (
-              <section className="labWorkspace panel" key={item.name}>
-                <div className="labWorkspaceHead">
-                  <div>
-                    <h2>{item.name}</h2>
-                    <p>{item.addresses.length} адресов · {item.rows.length} единиц оборудования · {item.analyzers} приборов в расчёте мощности</p>
+            {lab === "all" ? (
+              <>
+                <section className="panel labSummaryPanel">
+                  <div className="panelHead">
+                    <div><h2>Свод по 8 ЦКДЛ</h2><p>Выберите куст только когда нужна детализация по адресам и уровням</p></div>
                   </div>
-                  <div className="bigKpi"><span>КПД</span><strong>{pct(item.kpi)}</strong></div>
-                </div>
+                  <div className="labSummaryGrid">
+                    {labDetails.map((item) => {
+                      const included = item.rows.filter((x) => x.includedInKpi).length;
+                      const coverage = item.rows.length ? included / item.rows.length * 100 : 0;
+                      return (
+                        <button key={item.name} className="labSummaryCard" onClick={() => openLab(item.name)}>
+                          <div className="labSummaryTop">
+                            <div><strong>{item.name}</strong><span>{item.addresses.length} адресов · {item.rows.length} позиций</span></div>
+                            <div className="labSummaryKpi">{pct(item.kpi)}</div>
+                          </div>
+                          <div className="summaryStats">
+                            <div><span>В расчёте</span><strong>{included}</strong></div>
+                            <div><span>Охват парка</span><strong>{pct(coverage)}</strong></div>
+                            <div><span>Уточнений</span><strong>{item.reviewCount}</strong></div>
+                          </div>
+                          <div className="summaryProgress"><span style={{width: `${Math.min(item.kpi,100)}%`}} /></div>
+                          <div className="openHint">Открыть ЦКДЛ →</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
 
-                <div className="levelBreakdown">
-                  {item.levelBreakdown.map((g) => (
-                    <article key={g.name}>
-                      <span>{g.name}</span>
-                      <strong>{pct(g.kpi)}</strong>
-                      <small>{g.count} позиций · {g.included} в расчёте · {g.issues} вопросов</small>
-                    </article>
-                  ))}
-                </div>
-
-                <div className="addressList">
-                  {item.addresses.map((addr) => {
-                    const rows = item.rows.filter((x) => x.address === addr);
-                    const g = groupKpi(rows);
-                    return (
-                      <button key={addr} className="addressRow" onClick={() => {setAddress(addr);setLab(item.name);setView("equipment");}}>
-                        <div><strong>{addr}</strong><span>{rows.length} единиц оборудования</span></div>
-                        <div><span>КПД адреса</span><strong>{pct(g.kpi)}</strong></div>
-                        <div><span>В расчёте</span><strong>{g.included}</strong></div>
-                        <div><span>Уточнений</span><strong>{g.issues}</strong></div>
+                <section className="panel">
+                  <div className="panelHead"><div><h2>Сравнение ЦКДЛ</h2><p>КПД, объём, мощность и качество исходных данных в одном месте</p></div></div>
+                  <div className="labComparison">
+                    <div className="comparisonHead"><span>ЦКДЛ</span><span>КПД</span><span>Факт</span><span>Мощность/ч</span><span>Приборов в расчёте</span><span>Уточнений</span></div>
+                    {labDetails.map((item) => (
+                      <button key={item.name} className="comparisonRow" onClick={() => openLab(item.name)}>
+                        <strong>{item.name}</strong>
+                        <span className="comparisonKpi">{pct(item.kpi)}</span>
+                        <span>{fmt(item.fact)}</span>
+                        <span>{fmt(item.capacityPerHour)}</span>
+                        <span>{item.analyzers}</span>
+                        <span className={item.reviewCount ? "comparisonWarn" : ""}>{item.reviewCount}</span>
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </section>
+              </>
+            ) : (
+              <>
+                <div className="labSelector compact">
+                  <button className="backToSummary" onClick={() => setLab("all")}>← Все ЦКДЛ</button>
+                  {data.laboratories.map((x) => <button key={x.name} className={lab === x.name ? "active" : ""} onClick={() => setLab(x.name)}>{x.name}</button>)}
                 </div>
-              </section>
-            ))}
+
+                {labDetails.filter((x) => x.name === lab).map((item) => (
+                  <section className="labWorkspace panel" key={item.name}>
+                    <div className="labWorkspaceHead">
+                      <div>
+                        <h2>{item.name}</h2>
+                        <p>{item.addresses.length} адресов · {item.rows.length} единиц оборудования · {item.analyzers} приборов в расчёте мощности</p>
+                      </div>
+                      <div className="bigKpi"><span>КПД</span><strong>{pct(item.kpi)}</strong></div>
+                    </div>
+
+                    <div className="levelBreakdown">
+                      {item.levelBreakdown.map((g) => (
+                        <article key={g.name}>
+                          <span>{g.name}</span>
+                          <strong>{pct(g.kpi)}</strong>
+                          <small>{g.count} позиций · {g.included} в расчёте · {g.issues} вопросов</small>
+                        </article>
+                      ))}
+                    </div>
+
+                    <div className="addressList">
+                      {item.addresses.map((addr) => {
+                        const rows = item.rows.filter((x) => x.address === addr);
+                        const g = groupKpi(rows);
+                        return (
+                          <button key={addr} className="addressRow" onClick={() => {setAddress(addr);setLab(item.name);setView("equipment");}}>
+                            <div><strong>{addr}</strong><span>{rows.length} единиц оборудования</span></div>
+                            <div><span>КПД адреса</span><strong>{pct(g.kpi)}</strong></div>
+                            <div><span>В расчёте</span><strong>{g.included}</strong></div>
+                            <div><span>Уточнений</span><strong>{g.issues}</strong></div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </>
+            )}
           </>
         )}
 
@@ -459,8 +538,25 @@ export function Dashboard({ data }: { data: DashboardData }) {
               <div className="count">{reviewRows.length} позиций</div>
             </div>
             {!accessLab && (
-              <div className="issuesNotice">
-                Просматривать вопросы можно без входа. Чтобы отправить уточнение, заведующий ЦКДЛ вводит свой код доступа в левом меню.
+              <div className="issuesLoginHero">
+                <div>
+                  <span className="issuesLoginEyebrow">Рабочий режим ЦКДЛ</span>
+                  <h3>Войти как заведующий ЦКДЛ</h3>
+                  <p>После входа система покажет вопросы вашего куста и откроет формы ответа. Другие ЦКДЛ редактировать нельзя.</p>
+                </div>
+                <div className="issuesLoginForm">
+                  <input
+                    value={accessCode}
+                    onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => e.key === "Enter" && login()}
+                    placeholder="Введите код ЦКДЛ"
+                    autoComplete="off"
+                  />
+                  <button onClick={login} disabled={accessBusy || !accessCode.trim()}>
+                    {accessBusy ? "Проверяем…" : "Войти"}
+                  </button>
+                  {accessError && <span>{accessError}</span>}
+                </div>
               </div>
             )}
             {accessLab && (
@@ -549,6 +645,67 @@ export function Dashboard({ data }: { data: DashboardData }) {
         <footer><span>Источник: рабочая Google Таблица</span><span>Обновлено: {new Date(data.updatedAt).toLocaleString("ru-RU")}</span></footer>
       </section>
     </main>
+  );
+}
+
+function ParkStructureChart({items,total}:{items:{name:string;count:number}[];total:number}) {
+  let cursor = 0;
+  const segments = items.map((item, index) => {
+    const start = total ? cursor / total * 100 : 0;
+    cursor += item.count;
+    const end = total ? cursor / total * 100 : 0;
+    return { ...item, index, start, end };
+  });
+  const fills = segments.map((s) => `var(--chart-${s.index % 5}) ${s.start}% ${s.end}%`).join(", ");
+  return (
+    <div className="parkChart">
+      <div className="donut" style={{background: `conic-gradient(${fills})`}}>
+        <div className="donutHole"><strong>{fmt(total)}</strong><span>позиций</span></div>
+      </div>
+      <div className="chartLegend">
+        {segments.map((s) => (
+          <div key={s.name}><i style={{background:`var(--chart-${s.index % 5})`}} /><span>{s.name}</span><strong>{s.count}</strong><small>{total ? pct(s.count/total*100) : "—"}</small></div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function InclusionChart({items}:{items:{name:string;total:number;included:number;excluded:number}[]}) {
+  return (
+    <div className="stackChart">
+      {items.map((x) => {
+        const p = x.total ? x.included/x.total*100 : 0;
+        return (
+          <div className="stackRow" key={x.name}>
+            <strong>{x.name}</strong>
+            <div className="stackBar"><span style={{width:`${p}%`}} /><i style={{width:`${100-p}%`}} /></div>
+            <span>{x.included}/{x.total}</span>
+          </div>
+        );
+      })}
+      <div className="chartKey"><span><i className="keyIncluded" />В расчёте</span><span><i className="keyExcluded" />Вне расчёта</span></div>
+    </div>
+  );
+}
+
+function IssuesChart({items}:{items:{name:string;total:number;answered:number}[]}) {
+  const max = Math.max(1, ...items.map((x) => x.total));
+  return (
+    <div className="issuesChart">
+      {items.map((x) => (
+        <div className="issueBarRow" key={x.name}>
+          <strong>{x.name}</strong>
+          <div className="issueBarTrack">
+            <span style={{width:`${x.total/max*100}%`}}>
+              {x.answered > 0 && <i style={{width:`${x.total ? x.answered/x.total*100 : 0}%`}} />}
+            </span>
+          </div>
+          <b>{x.total}</b>
+        </div>
+      ))}
+      <div className="chartNote">Тёмная часть внутри полосы — уже полученные ответы ЦКДЛ.</div>
+    </div>
   );
 }
 
