@@ -185,3 +185,87 @@ footer{display:flex;justify-content:space-between;gap:12px;color:#8a96a4;font-si
 .breadcrumbs button:hover{text-decoration:underline}
 .breadcrumbs span{color:#aab4bf}
 .breadcrumbs strong{font-weight:700;color:#2c3e52;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+
+:root{
+  --chart-0:#315f91;
+  --chart-1:#5e87b3;
+  --chart-2:#8ca8c6;
+  --chart-3:#b8cadc;
+  --chart-4:#d7e1eb;
+}
+.overviewAnalytics{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.parkChart{display:grid;grid-template-columns:170px 1fr;gap:22px;align-items:center;min-height:190px}
+.donut{width:160px;height:160px;border-radius:50%;display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(20,32,51,.04)}
+.donutHole{width:92px;height:92px;border-radius:50%;background:white;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(28,45,69,.05)}
+.donutHole strong{font-size:25px;letter-spacing:-.04em}
+.donutHole span{font-size:9px;color:#8793a0;margin-top:2px}
+.chartLegend{display:flex;flex-direction:column;gap:9px}
+.chartLegend>div{display:grid;grid-template-columns:10px minmax(90px,1fr) 38px 45px;gap:8px;align-items:center;font-size:10px}
+.chartLegend i{width:9px;height:9px;border-radius:3px}
+.chartLegend span{color:#556476}
+.chartLegend strong{text-align:right}
+.chartLegend small{text-align:right;color:#8b97a4}
+.stackChart{display:flex;flex-direction:column;gap:9px}
+.stackRow{display:grid;grid-template-columns:90px 1fr 48px;gap:9px;align-items:center}
+.stackRow>strong{font-size:10px}
+.stackRow>span{font-size:9px;color:#748295;text-align:right}
+.stackBar{height:11px;border-radius:999px;overflow:hidden;background:#e9eef3;display:flex}
+.stackBar span{background:#315f91;height:100%}
+.stackBar i{background:#e6ebf0;height:100%}
+.chartKey{display:flex;gap:18px;margin-top:5px;color:#85919f;font-size:9px}
+.chartKey span{display:flex;align-items:center;gap:6px}
+.chartKey i{width:8px;height:8px;border-radius:2px}
+.keyIncluded{background:#315f91}
+.keyExcluded{background:#e6ebf0;border:1px solid #d5dde6}
+.issuesChart{display:flex;flex-direction:column;gap:9px}
+.issueBarRow{display:grid;grid-template-columns:90px 1fr 24px;gap:9px;align-items:center}
+.issueBarRow strong{font-size:10px}
+.issueBarTrack{height:11px;background:#eef1f4;border-radius:999px;overflow:hidden}
+.issueBarTrack>span{display:block;height:100%;background:#e5ad24;border-radius:999px;position:relative;overflow:hidden}
+.issueBarTrack>span>i{display:block;height:100%;background:#52785f}
+.issueBarRow b{font-size:10px;text-align:right}
+.chartNote{font-size:9px;color:#8995a3;margin-top:4px}
+.labSummaryGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.labSummaryCard{border:1px solid #dde5ed;background:#fff;border-radius:14px;padding:15px;text-align:left;cursor:pointer;transition:.15s ease}
+.labSummaryCard:hover{transform:translateY(-2px);border-color:#b8c8d8;box-shadow:0 10px 24px rgba(27,47,73,.07)}
+.labSummaryTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.labSummaryTop>div:first-child strong{display:block;font-size:14px}
+.labSummaryTop>div:first-child span{display:block;margin-top:4px;color:#8a96a4;font-size:9px}
+.labSummaryKpi{font-size:22px;font-weight:800;letter-spacing:-.04em}
+.summaryStats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:14px 0 10px}
+.summaryStats div{background:#f7f9fb;border-radius:9px;padding:8px}
+.summaryStats span{display:block;font-size:8px;color:#8995a2}
+.summaryStats strong{display:block;font-size:12px;margin-top:3px}
+.summaryProgress{height:7px;border-radius:999px;background:#edf1f5;overflow:hidden}
+.summaryProgress span{display:block;height:100%;background:#315f91;border-radius:999px}
+.openHint{margin-top:9px;font-size:9px;color:#42698f;font-weight:700}
+.labComparison{border:1px solid #e2e8ef;border-radius:12px;overflow:hidden}
+.comparisonHead,.comparisonRow{display:grid;grid-template-columns:1.2fr .65fr 1fr 1fr 1fr .7fr;gap:10px;align-items:center;padding:11px 13px}
+.comparisonHead{background:#f7f9fb;color:#758294;font-size:9px;font-weight:700}
+.comparisonRow{width:100%;border:0;border-top:1px solid #edf1f4;background:#fff;text-align:left;cursor:pointer;font-size:10px}
+.comparisonRow:hover{background:#fafbfd}
+.comparisonKpi{font-weight:800;font-size:12px}
+.comparisonWarn{color:#9b7110;font-weight:800}
+.labSelector.compact{margin-bottom:12px}
+.backToSummary{font-weight:750}
+.issuesLoginHero{display:grid;grid-template-columns:1.5fr .9fr;gap:20px;align-items:center;padding:18px;border-radius:14px;background:linear-gradient(135deg,#183454,#274f78);color:#fff;margin-bottom:14px}
+.issuesLoginEyebrow{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.09em;color:#aac0d6;font-weight:800;margin-bottom:5px}
+.issuesLoginHero h3{font-size:18px;margin:0 0 6px}
+.issuesLoginHero p{font-size:10px;color:#d4dfeb;max-width:620px;line-height:1.45}
+.issuesLoginForm{display:grid;grid-template-columns:1fr auto;gap:8px}
+.issuesLoginForm input{border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;border-radius:9px;padding:10px 11px;font-size:11px;outline:none;text-transform:uppercase}
+.issuesLoginForm input::placeholder{color:#adc0d3}
+.issuesLoginForm button{border:0;background:#fff;color:#183454;border-radius:9px;padding:10px 15px;font-size:10px;font-weight:800;cursor:pointer}
+.issuesLoginForm>span{grid-column:1/-1;font-size:9px;color:#ffcbc5}
+@media(max-width:1250px){
+  .overviewAnalytics{grid-template-columns:1fr}
+  .labSummaryGrid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:800px){
+  .parkChart{grid-template-columns:1fr;justify-items:center}
+  .chartLegend{width:100%}
+  .labSummaryGrid{grid-template-columns:1fr}
+  .comparisonHead{display:none}
+  .comparisonRow{grid-template-columns:1fr 1fr 1fr}
+  .issuesLoginHero{grid-template-columns:1fr}
+}
