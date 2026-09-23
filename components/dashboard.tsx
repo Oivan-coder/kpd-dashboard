@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Analyzer, DashboardData, VerificationStatus } from "@/lib/types";
 import { StatusBadge } from "./status-badge";
 
@@ -49,6 +49,66 @@ export function Dashboard({ data }: { data: DashboardData }) {
   const [manufacturer, setManufacturer] = useState("all");
   const [status, setStatus] = useState<VerificationStatus | "all">("all");
   const [search, setSearch] = useState("");
+  const [accessLab, setAccessLab] = useState<string | null>(null);
+  const [accessCode, setAccessCode] = useState("");
+  const [accessError, setAccessError] = useState("");
+  const [accessBusy, setAccessBusy] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, { response: string; confirmedBy: string; busy?: boolean; error?: string; saved?: boolean }>>({});
+
+  useEffect(() => {
+    fetch("/api/session")
+      .then((r) => r.json())
+      .then((s) => setAccessLab(s.laboratory ?? null))
+      .catch(() => {});
+  }, []);
+
+  const login = async () => {
+    setAccessBusy(true);
+    setAccessError("");
+    try {
+      const r = await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: accessCode }),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || "Не удалось войти");
+      setAccessLab(body.laboratory);
+      setAccessCode("");
+      setView("issues");
+    } catch (e) {
+      setAccessError(e instanceof Error ? e.message : "Ошибка входа");
+    } finally {
+      setAccessBusy(false);
+    }
+  };
+
+  const logout = async () => {
+    await fetch("/api/session", { method: "DELETE" });
+    setAccessLab(null);
+  };
+
+  const updateAnswer = (id: string, patch: Partial<{ response: string; confirmedBy: string; busy: boolean; error: string; saved: boolean }>) => {
+    setAnswers((prev) => ({ ...prev, [id]: { response: "", confirmedBy: "", ...prev[id], ...patch } }));
+  };
+
+  const submitAnswer = async (item: Analyzer) => {
+    const state = answers[item.id] ?? { response: "", confirmedBy: "" };
+    updateAnswer(item.id, { busy: true, error: "", saved: false });
+    try {
+      const r = await fetch("/api/clarifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: item.id, response: state.response, confirmedBy: state.confirmedBy }),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || "Не удалось сохранить");
+      updateAnswer(item.id, { busy: false, saved: true });
+      setTimeout(() => window.location.reload(), 700);
+    } catch (e) {
+      updateAnswer(item.id, { busy: false, error: e instanceof Error ? e.message : "Ошибка сохранения" });
+    }
+  };
 
   const reviewRows = useMemo(
     () => data.analyzers.filter((x) => x.status === "review" || x.status === "error"),
@@ -154,6 +214,31 @@ export function Dashboard({ data }: { data: DashboardData }) {
             Уточнения <span className="navCount">{reviewTotal}</span>
           </button>
         </nav>
+        <div className="accessPanel">
+          {accessLab ? (
+            <>
+              <span className="accessLabel">Редактирование</span>
+              <strong>{accessLab}</strong>
+              <button onClick={() => { setLab(accessLab); setView("issues"); }}>Мои уточнения</button>
+              <button className="ghostAccess" onClick={logout}>Выйти</button>
+            </>
+          ) : (
+            <>
+              <span className="accessLabel">Для заведующего ЦКДЛ</span>
+              <input
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === "Enter" && login()}
+                placeholder="Код доступа"
+                autoComplete="off"
+              />
+              <button onClick={login} disabled={accessBusy || !accessCode.trim()}>
+                {accessBusy ? "Проверяем…" : "Войти для ответа"}
+              </button>
+              {accessError && <span className="accessError">{accessError}</span>}
+            </>
+          )}
+        </div>
         <div className="sideMeta">
           <div className={`sourcePill source-${data.source}`}><span className="sourceDot" />{data.source === "google-sheets" ? "Google Sheets · live" : "Fallback"}</div>
           <span>Август 2026</span>
@@ -308,34 +393,90 @@ export function Dashboard({ data }: { data: DashboardData }) {
               <div><h2>Что нужно уточнить</h2><p>Каждая карточка содержит конкретный вопрос для заведующего ЦКДЛ</p></div>
               <div className="count">{reviewRows.length} позиций</div>
             </div>
+            {!accessLab && (
+              <div className="issuesNotice">
+                Просматривать вопросы можно без входа. Чтобы отправить уточнение, заведующий ЦКДЛ вводит свой код доступа в левом меню.
+              </div>
+            )}
+            {accessLab && (
+              <div className="issuesNotice accessGranted">
+                Режим редактирования: <strong>{accessLab}</strong>. Формы ответа доступны только для этого куста.
+              </div>
+            )}
             <div className="issuesWorkspace">
-              {reviewRows.map((x) => (
-                <article className="issueDetailCard" key={x.id}>
-                  <div className="issueDetailHead">
-                    <div>
-                      <div className="issueBreadcrumb">{x.laboratory} · {x.level}</div>
-                      <h3>{x.manufacturer} {x.model}</h3>
-                    </div>
-                    <StatusBadge status={x.status} />
-                  </div>
-                  <div className="issueFacts">
-                    <div><span>Адрес</span><strong>{x.address || "не указан"}</strong></div>
-                    <div><span>Серийный номер</span><strong>{x.serials.join(", ") || "не указан"}</strong></div>
-                    <div><span>Сейчас принято</span><strong>{x.capacityPerHour ? `${fmt(x.capacityPerHour)} ${labelUnit(x)}` : "—"}</strong></div>
-                    <div><span>Тех. статус</span><strong>{x.technicalStatus || "—"}</strong></div>
-                  </div>
-                  <div className="questionBox">
-                    <span>Вопрос ЦКДЛ</span>
-                    <strong>{x.question}</strong>
-                  </div>
-                  <div className="answerRoute">
-                    <span>Маршрут ответа</span>
-                    <p>Заведующий открывает эту позицию, вносит уточнение и подтверждает данные. Ответ сохраняется в рабочую Google Таблицу; после проверки РЦ статус меняется на «Проверено».</p>
-                    <button disabled>Ответить на позицию — подключаем авторизацию</button>
-                  </div>
-                  {x.sourceUrl && <a className="sourceLink" href={x.sourceUrl} target="_blank" rel="noreferrer">Паспортный источник мощности →</a>}
-                </article>
-              ))}
+              {reviewRows
+                .filter((x) => !accessLab || x.laboratory === accessLab || lab === "all")
+                .map((x) => {
+                  const form = answers[x.id] ?? { response: "", confirmedBy: "" };
+                  const editable = accessLab === x.laboratory;
+                  return (
+                    <article className="issueDetailCard" key={x.id}>
+                      <div className="issueDetailHead">
+                        <div>
+                          <div className="issueBreadcrumb">{x.laboratory} · {x.level}</div>
+                          <h3>{x.manufacturer} {x.model}</h3>
+                        </div>
+                        <StatusBadge status={x.status} />
+                      </div>
+                      <div className="issueFacts">
+                        <div><span>Адрес</span><strong>{x.address || "не указан"}</strong></div>
+                        <div><span>Серийный номер</span><strong>{x.serials.join(", ") || "не указан"}</strong></div>
+                        <div><span>Сейчас принято</span><strong>{x.capacityPerHour ? `${fmt(x.capacityPerHour)} ${labelUnit(x)}` : "—"}</strong></div>
+                        <div><span>Тех. статус</span><strong>{x.technicalStatus || "—"}</strong></div>
+                      </div>
+                      <div className="questionBox">
+                        <span>Что нужно уточнить</span>
+                        <strong>{x.question}</strong>
+                      </div>
+
+                      {x.response ? (
+                        <div className="submittedAnswer">
+                          <span>Ответ ЦКДЛ получен</span>
+                          <p>{x.response}</p>
+                          <small>{x.confirmedBy}{x.confirmedAt ? ` · ${x.confirmedAt}` : ""}</small>
+                        </div>
+                      ) : editable ? (
+                        <div className="answerForm">
+                          <label>
+                            <span>Ответ / уточняющая информация</span>
+                            <textarea
+                              value={form.response}
+                              onChange={(e) => updateAnswer(x.id, { response: e.target.value })}
+                              placeholder="Например: комплекс состоит из 2 × XN-10 и 1 × SP-10. Серийные номера…"
+                              rows={4}
+                            />
+                          </label>
+                          <label>
+                            <span>ФИО и должность подтверждающего</span>
+                            <input
+                              value={form.confirmedBy}
+                              onChange={(e) => updateAnswer(x.id, { confirmedBy: e.target.value })}
+                              placeholder="Иванова И.И., заведующий КДЛ"
+                            />
+                          </label>
+                          {form.error && <div className="formError">{form.error}</div>}
+                          {form.saved && <div className="formSuccess">Ответ сохранён. Обновляем данные…</div>}
+                          <button
+                            className="submitAnswer"
+                            onClick={() => submitAnswer(x)}
+                            disabled={form.busy || !form.response.trim() || !form.confirmedBy.trim()}
+                          >
+                            {form.busy ? "Сохраняем…" : "Отправить уточнение"}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="answerRoute">
+                          <span>Маршрут ответа</span>
+                          <p>
+                            Эта позиция редактируется только после входа под кодом <strong>{x.laboratory}</strong>.
+                            Ответ будет записан прямо в рабочую таблицу и попадёт в журнал изменений.
+                          </p>
+                        </div>
+                      )}
+                      {x.sourceUrl && <a className="sourceLink" href={x.sourceUrl} target="_blank" rel="noreferrer">Паспортный источник мощности →</a>}
+                    </article>
+                  );
+                })}
             </div>
           </section>
         )}
