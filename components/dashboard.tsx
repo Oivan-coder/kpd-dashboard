@@ -65,6 +65,66 @@ function connectionGroup(item: Analyzer) {
   return "Нет данных";
 }
 
+function isOperational(item: Analyzer) {
+  const v = (item.technicalStatus || "").toLowerCase().replace(/ё/g, "е").trim();
+  if (!v) return false;
+  if (
+    v.includes("не функциониру") ||
+    v.includes("законсерв") ||
+    v.includes("списан") ||
+    v.includes("выведен") ||
+    v.includes("ремонт") ||
+    v.includes("установк") ||
+    v.includes("планиру")
+  ) return false;
+  return (
+    v.includes("функциониру") ||
+    v.includes("фнкциониру") ||
+    v === "да" ||
+    v.includes("резерв")
+  );
+}
+
+function uniquePhysicalRows(rows: Analyzer[]) {
+  const seen = new Set<string>();
+  return rows.filter((x) => {
+    const serialKey = x.serials.length ? [...x.serials].sort().join("|") : "";
+    const key = serialKey
+      ? `${x.laboratory}|${serialKey}`
+      : `${x.laboratory}|${x.address}|${x.inventoryNumber || ""}|${x.manufacturer}|${x.model}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function loadFor(rows: Analyzer[], mode: "gross" | "operational" | "active") {
+  let eligible = uniquePhysicalRows(rows).filter((x) => isOperational(x) && Boolean(x.capacityPerHour));
+
+  if (mode === "operational" || mode === "active") {
+    eligible = eligible.filter((x) => x.includedInKpi);
+  }
+  if (mode === "active") {
+    eligible = eligible.filter((x) => x.factInCalculation > 0);
+  }
+
+  const fact = eligible.reduce(
+    (sum, x) => sum + (mode === "gross" ? x.rawFact : x.factInCalculation),
+    0
+  );
+  const capacity = eligible.reduce((sum, x) => {
+    const hours = mode === "gross" ? 252 : x.effectiveHours || 210;
+    return sum + (x.capacityPerHour || 0) * hours;
+  }, 0);
+
+  return {
+    fact,
+    capacity,
+    value: capacity > 0 ? fact / capacity * 100 : 0,
+    devices: eligible.length,
+  };
+}
+
 const statusLabels: Record<VerificationStatus | "all", string> = {
   all: "Все статусы",
   verified: "Проверено",
@@ -468,6 +528,30 @@ export function Dashboard({ data }: { data: DashboardData }) {
     }
   };
 
+  const grossLoad = useMemo(() => loadFor(data.analyzers, "gross"), [data.analyzers]);
+  const operationalLoad = useMemo(() => loadFor(data.analyzers, "operational"), [data.analyzers]);
+  const activeLoad = useMemo(() => loadFor(data.analyzers, "active"), [data.analyzers]);
+
+  const unusedPark = useMemo(() => {
+    const working = uniquePhysicalRows(data.analyzers).filter((x) => isOperational(x) && Boolean(x.capacityPerHour));
+    const unused = working.filter((x) => x.rawFact <= 0);
+    return {
+      total: working.length,
+      unused: unused.length,
+      value: working.length ? unused.length / working.length * 100 : 0,
+    };
+  }, [data.analyzers]);
+
+  const methodologyByLab = useMemo(() => data.laboratories.map((labItem) => {
+    const rows = data.analyzers.filter((x) => x.laboratory === labItem.name);
+    return {
+      name: labItem.name,
+      gross: loadFor(rows, "gross").value,
+      operational: loadFor(rows, "operational").value,
+      active: loadFor(rows, "active").value,
+    };
+  }), [data]);
+
   const reviewTotal = reviewRows.length;
   const verifiedTotal = data.analyzers.filter((x) => x.status === "verified").length;
   const excludedTotal = data.analyzers.filter((x) => x.status === "excluded").length;
@@ -580,6 +664,36 @@ export function Dashboard({ data }: { data: DashboardData }) {
                 <div><span>В знаменатель</span><strong>2–3 уровень / ЦКДЛ</strong><small>только оборудование, включённое в контур расчёта и имеющее принятую паспортную мощность</small></div>
                 <div><span>Исключаются</span><strong>неработающее и вне методики</strong><small>1 уровень/экспресс, ПЦР, ИФА, СОЭ, HbA1c и другие согласованные исключения</small></div>
               </div>
+            </section>
+
+            <section className="loadMethodCards">
+              <article className="loadMethodCard gross">
+                <div className="loadMethodTop"><span>1 · Валовая загрузка мощности</span><strong>{pct(grossLoad.value)}</strong></div>
+                <p>Весь исправный парк с паспортной мощностью. 12 часов × 21 день = 252 ч/мес. Включая СОЭ, HbA1c и другие направления вне основной модели.</p>
+                <div className="loadMethodMeta"><span>{grossLoad.devices} приборов</span><span>{fmt(grossLoad.fact)} факт</span></div>
+              </article>
+              <article className="loadMethodCard operational featured">
+                <div className="loadMethodTop"><span>2 · Операционная загрузка</span><strong>{pct(operationalLoad.value)}</strong></div>
+                <p>Основной производственный контур. Базово 10 эффективных часов × 21 день = 210 ч/мес; утверждённый режим прибора заменяет 210.</p>
+                <div className="loadMethodMeta"><span>{operationalLoad.devices} приборов</span><span>основной KPI</span></div>
+              </article>
+              <article className="loadMethodCard active">
+                <div className="loadMethodTop"><span>3 · Загрузка активного парка</span><strong>{pct(activeLoad.value)}</strong></div>
+                <p>Та же операционная модель, но в знаменателе остаются только анализаторы, по которым за месяц есть фактический объём.</p>
+                <div className="loadMethodMeta"><span>{activeLoad.devices} активных приборов</span><span>{fmt(activeLoad.fact)} факт</span></div>
+              </article>
+              <article className="loadMethodCard unused">
+                <div className="loadMethodTop"><span>Неиспользуемый исправный парк</span><strong>{pct(unusedPark.value)}</strong></div>
+                <p>Доля исправных приборов с паспортной мощностью, по которым исходный факт за август равен нулю.</p>
+                <div className="loadMethodMeta"><span>{unusedPark.unused} из {unusedPark.total}</span><span>факт = 0</span></div>
+              </article>
+            </section>
+
+            <section className="panel methodologyComparePanel">
+              <div className="panelHead">
+                <div><h2>Три модели загрузки по ЦКДЛ</h2><p>Позволяет отделить низкую загрузку всего парка от интенсивности реально работающего оборудования</p></div>
+              </div>
+              <MethodologyComparison items={methodologyByLab} />
             </section>
 
             <div className="analyticsGrid two">
@@ -943,6 +1057,28 @@ function LoginHero(props: {
         <button onClick={props.login} disabled={props.busy || !props.code.trim()}>{props.busy ? "Проверяем…" : "Войти"}</button>
         {props.error && <small>{props.error}</small>}
       </div>
+    </div>
+  );
+}
+
+function MethodologyComparison({ items }: { items: { name: string; gross: number; operational: number; active: number }[] }) {
+  return (
+    <div className="methodCompare">
+      <div className="methodLegend">
+        <span><i className="methodGross" />Валовая</span>
+        <span><i className="methodOperational" />Операционная</span>
+        <span><i className="methodActive" />Активный парк</span>
+      </div>
+      {items.map((x) => (
+        <div className="methodRow" key={x.name}>
+          <strong>{x.name}</strong>
+          <div className="methodBars">
+            <div><i className="methodGross" style={{ width: `${Math.min(x.gross, 100)}%` }} /><span>{pct(x.gross)}</span></div>
+            <div><i className="methodOperational" style={{ width: `${Math.min(x.operational, 100)}%` }} /><span>{pct(x.operational)}</span></div>
+            <div><i className="methodActive" style={{ width: `${Math.min(x.active, 100)}%` }} /><span>{pct(x.active)}</span></div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
