@@ -175,7 +175,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   try {
     const ranges = [
       "'Расчет КПД'!A1:G20",
-      ...LABS.map((lab) => `'${lab}'!A1:AM300`),
+      ...LABS.map((lab) => `'${lab}'!A1:AP300`),
     ];
 
     const response = await sheets.spreadsheets.values.batchGet({
@@ -249,6 +249,10 @@ export async function getDashboardData(): Promise<DashboardData> {
         response: ix("Ответ ЦКДЛ"),
         confirmedBy: ix("Подтвердил ЦКДЛ"),
         confirmedAt: ix("Дата подтверждения"),
+        responseStatus: ix("Статус ответа"),
+        labComment: ix("Комментарий ЦКДЛ"),
+        labCommentAuthor: ix("Автор комментария"),
+        labCommentAt: ix("Дата комментария"),
       };
 
       rows.slice(1).forEach((row, rowIndex) => {
@@ -317,6 +321,10 @@ export async function getDashboardData(): Promise<DashboardData> {
           response: text(cell(row, c.response)) || undefined,
           confirmedBy: text(cell(row, c.confirmedBy)) || undefined,
           confirmedAt: text(cell(row, c.confirmedAt)) || undefined,
+          responseStatus: text(cell(row, c.responseStatus)) || undefined,
+          labComment: text(cell(row, c.labComment)) || undefined,
+          labCommentAuthor: text(cell(row, c.labCommentAuthor)) || undefined,
+          labCommentAt: text(cell(row, c.labCommentAt)) || undefined,
         });
       });
     });
