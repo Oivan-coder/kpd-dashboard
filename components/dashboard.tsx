@@ -49,6 +49,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
   const [manufacturer, setManufacturer] = useState("all");
   const [status, setStatus] = useState<VerificationStatus | "all">("all");
   const [search, setSearch] = useState("");
+  const [equipmentMode, setEquipmentMode] = useState<"work" | "technical">("work");
 
   const reviewRows = useMemo(
     () => data.analyzers.filter((x) => x.status === "review" || x.status === "error"),
@@ -91,7 +92,14 @@ export function Dashboard({ data }: { data: DashboardData }) {
           x.direction,
           x.manufacturer,
           x.model,
+          x.inventoryNumber,
           x.serials.join(" "),
+          x.balanceType,
+          x.balanceHolderDetails,
+          x.bregisConnection,
+          x.technicalStatus,
+          x.responsiblePerson,
+          x.note,
           x.issue ?? "",
           x.question ?? "",
         ]
@@ -415,12 +423,27 @@ export function Dashboard({ data }: { data: DashboardData }) {
 
         {view === "equipment" && (
           <section className="panel">
-            <div className="panelHead">
-              <div><h2>Полный перечень оборудования</h2><p>По умолчанию показаны все позиции, а не только проблемные</p></div>
-              <div className="count">{filtered.length} из {data.analyzers.length}</div>
+            <div className="panelHead registryHead">
+              <div>
+                <h2>{equipmentMode === "work" ? "Полный перечень оборудования" : "Технический реестр оборудования"}</h2>
+                <p>
+                  {equipmentMode === "work"
+                    ? "Рабочий вид: загрузка, мощность, КПД и статус проверки"
+                    : "Технический вид: все исходные сведения по каждой учётной позиции"}
+                </p>
+              </div>
+              <div className="registryHeadRight">
+                <div className="registrySwitch">
+                  <button className={equipmentMode === "work" ? "active" : ""} onClick={() => setEquipmentMode("work")}>Рабочий вид</button>
+                  <button className={equipmentMode === "technical" ? "active" : ""} onClick={() => setEquipmentMode("technical")}>Технический реестр</button>
+                </div>
+                <div className="count">{filtered.length} из {data.analyzers.length}</div>
+              </div>
             </div>
             <Filters {...{lab,setLab,level,setLevel,address,setAddress,direction,setDirection,manufacturer,setManufacturer,status,setStatus,search,setSearch,levels,directions,manufacturers,addresses,labs:data.laboratories.map(x=>x.name)}} />
-            <EquipmentTable rows={filtered} />
+            {equipmentMode === "work"
+              ? <EquipmentTable rows={filtered} />
+              : <TechnicalEquipmentTable rows={filtered} />}
           </section>
         )}
 
@@ -490,6 +513,92 @@ function Filters(props: any) {
         {Object.entries(statusLabels).map(([k,v]) => <option value={k} key={k}>{v}</option>)}
       </select>
       <input value={props.search} onChange={(e) => props.setSearch(e.target.value)} placeholder="Модель, серийник, адрес…" />
+    </div>
+  );
+}
+
+function TechnicalEquipmentTable({rows}:{rows:Analyzer[]}) {
+  return (
+    <div className="tableWrap technicalTableWrap">
+      <table className="equipmentTable technicalTable">
+        <thead>
+          <tr>
+            <th>ЦКДЛ</th>
+            <th>МО / адрес</th>
+            <th>Уровень / этаж</th>
+            <th>Вид оборудования</th>
+            <th>Производитель / модель</th>
+            <th>Инвентарный №</th>
+            <th>Серийный №</th>
+            <th>Год / ввод</th>
+            <th>Балансодержатель</th>
+            <th>Условия владения</th>
+            <th>СПИ / износ</th>
+            <th>БРЕГИС</th>
+            <th>Тех. статус</th>
+            <th>Ответственный</th>
+            <th>Исходная мощность</th>
+            <th>Принятая мощность</th>
+            <th>В расчёте КПД</th>
+            <th>Верификация</th>
+            <th>Источник / комментарий</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((x) => (
+            <tr key={x.id} className={x.status === "review" ? "rowReview" : x.status === "error" ? "rowError" : undefined}>
+              <td><strong>{x.laboratory}</strong></td>
+              <td>
+                <strong>{x.organization || "—"}</strong>
+                <div className="subtle">{x.address || "адрес не указан"}</div>
+              </td>
+              <td>
+                <strong>{x.level || "—"}</strong>
+                <div className="subtle">этаж: {x.floor || "—"}</div>
+              </td>
+              <td>{x.direction || "—"}</td>
+              <td>
+                <strong>{x.manufacturer || "—"} {x.model}</strong>
+                {(x.sourceManufacturer || x.sourceModel) && (
+                  <div className="subtle">исходно: {[x.sourceManufacturer, x.sourceModel].filter(Boolean).join(" ")}</div>
+                )}
+              </td>
+              <td>{x.inventoryNumber || "—"}</td>
+              <td>{x.serials.join(", ") || "—"}</td>
+              <td>
+                <strong>{x.manufactureYear || "—"}</strong>
+                <div className="subtle">ввод: {x.commissioningDate || "—"}</div>
+              </td>
+              <td>{x.balanceType || "—"}</td>
+              <td><div className="technicalLong">{x.balanceHolderDetails || "—"}</div></td>
+              <td>
+                <strong>{x.usefulLife || "—"}</strong>
+                <div className="subtle">износ: {x.depreciation || "—"}</div>
+              </td>
+              <td>{x.bregisConnection || "—"}</td>
+              <td>{x.technicalStatus || "—"}</td>
+              <td><div className="technicalLong">{x.responsiblePerson || "—"}</div></td>
+              <td>
+                <strong>{x.originalCapacity || x.sourceCapacity || "—"}</strong>
+                {x.sourceCapacity && x.sourceCapacity !== x.originalCapacity && <div className="subtle">норм.: {x.sourceCapacity}</div>}
+              </td>
+              <td>{x.capacityPerHour ? `${fmt(x.capacityPerHour)} ${labelUnit(x)}` : "—"}</td>
+              <td>{x.includedInKpi ? <span className="calcYes">Да</span> : <span className="calcNo">Нет</span>}</td>
+              <td>
+                <StatusBadge status={x.status} />
+                <div className="subtle">{x.verificationText || "—"}</div>
+              </td>
+              <td>
+                {x.sourceUrl ? <a className="sourceLink inlineSource" href={x.sourceUrl} target="_blank" rel="noreferrer">Источник</a> : "—"}
+                {x.powerComment && <div className="technicalLong subtle">{x.powerComment}</div>}
+                {x.reasonComment && <div className="technicalLong subtle">{x.reasonComment}</div>}
+                {x.note && <div className="technicalLong subtle">Примечание: {x.note}</div>}
+              </td>
+            </tr>
+          ))}
+          {!rows.length && <tr><td colSpan={19} className="empty">Нет позиций по выбранным фильтрам</td></tr>}
+        </tbody>
+      </table>
     </div>
   );
 }
