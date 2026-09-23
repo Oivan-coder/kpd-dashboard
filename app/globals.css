@@ -467,3 +467,30 @@ footer{display:flex;justify-content:space-between;gap:12px;color:#8a96a4;font-si
   .adminToolbar{grid-template-columns:1fr}
   .adminStats{flex-wrap:wrap}
 }
+
+.methodologyPanel{display:grid;grid-template-columns:1.15fr 1.85fr;gap:18px;margin-bottom:14px;padding:18px;border:1px solid #dce5ed;border-radius:14px;background:linear-gradient(135deg,#f8fbfd,#f3f7fa)}
+.methodologyEyebrow{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#66809a;font-weight:800;margin-bottom:5px}
+.methodologyMain h2{font-size:18px;margin:0 0 12px}
+.formulaBox{padding:13px;border-radius:11px;background:#173454;color:#fff}
+.formulaBox strong{display:block;font-size:13px;line-height:1.45}
+.formulaBox span{display:block;font-size:9px;line-height:1.45;color:#c8d7e6;margin-top:5px}
+.methodologyFacts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.methodologyFacts div{padding:11px;border:1px solid #e0e7ee;background:#fff;border-radius:10px}
+.methodologyFacts span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#85919e}
+.methodologyFacts strong{display:block;font-size:12px;margin-top:4px}
+.methodologyFacts small{display:block;font-size:8px;line-height:1.4;color:#7d8996;margin-top:3px}
+.hoursBtn{margin-top:5px;border:1px solid #cfd9e3;background:#fff;border-radius:7px;padding:4px 6px;font-size:8px;color:#365f88;cursor:pointer}
+.hourCurrent{margin:12px 0;padding:11px;border-radius:10px;background:#f3f7fa;border:1px solid #dce5ed}
+.hourCurrent span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#7d8b98}
+.hourCurrent strong{display:block;font-size:18px;margin-top:4px}
+.hourCurrent small{display:block;font-size:8px;color:#87929f;margin-top:2px}
+.adminSectionTitle{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin:22px 0 10px}
+.adminSectionTitle h2{font-size:17px;margin:0}
+.adminSectionTitle p{font-size:9px;margin-top:4px}
+.adminSectionTitle>span{font-size:9px;color:#7f8b98;background:#f0f4f7;border-radius:999px;padding:5px 8px}
+.hourCompare{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.hourCompare div{padding:10px;border:1px solid #e1e8ee;border-radius:9px;background:#f8fafb}
+.hourCompare span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#83909d}
+.hourCompare strong{display:block;font-size:15px;margin-top:3px}
+@media(max-width:1000px){.methodologyPanel{grid-template-columns:1fr}}
+@media(max-width:700px){.methodologyFacts{grid-template-columns:1fr}}
